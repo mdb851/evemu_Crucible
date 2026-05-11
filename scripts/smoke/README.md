@@ -33,6 +33,16 @@ pwsh .\scripts\smoke\docker-smoke.ps1
 
 CI: `.github/workflows/docker-smoke.yml` runs **`docker-smoke.sh`** on pushes and PRs to **`master`**, **`staging`**, and **`restoration/**`** (plus **workflow_dispatch**), with **`permissions: contents: read`** and **`MAX_WAIT=300`**.
 
+### Live-smoke without re-running Tier A
+
+After a **manual client** session, collect DB evidence only:
+
+```powershell
+pwsh .\scripts\live-smoke\run-post-client-evidence.ps1 -Target all
+```
+
+See **`scripts/live-smoke/README.md`** for why the **game client** is still required for the RPC portion of contracts / corp market smoke.
+
 ### Troubleshooting (Actions / forks)
 
 - Ensure **GitHub Actions** is enabled for the repository (forks may default to off until approved).
@@ -47,7 +57,8 @@ Optional:
 | `-SkipUp` | Assume containers already running; only wait + checks. |
 | `-PostClientAssertions contracts` | After Tier A, pipe `sql/contracts_courier_assertions.sql` into MariaDB (informational output). |
 | `-PostClientAssertions paper` | Same for `sql/paper_doll_assertions.sql`. |
-| `-PostClientAssertions all` | Run both SQL files. |
+| `-PostClientAssertions corpmarket` | Same for `sql/corp_market_assertions.sql` (corp `mktOrders`). |
+| `-PostClientAssertions all` | Run contracts, paper doll, and corp market SQL files. |
 
 **Tier A steps:**
 

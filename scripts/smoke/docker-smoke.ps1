@@ -16,7 +16,7 @@
 param(
     [switch] $SkipBuild,
     [switch] $SkipUp,
-    [ValidateSet('none', 'contracts', 'paper', 'all')]
+    [ValidateSet('none', 'contracts', 'paper', 'corpmarket', 'all')]
     [string] $PostClientAssertions = 'none',
     [int] $MaxWaitSeconds = 180
 )
@@ -130,6 +130,9 @@ SELECT IF(
         }
         if ($PostClientAssertions -eq 'paper' -or $PostClientAssertions -eq 'all') {
             $run += Join-Path $sqlDir 'paper_doll_assertions.sql'
+        }
+        if ($PostClientAssertions -eq 'corpmarket' -or $PostClientAssertions -eq 'all') {
+            $run += Join-Path $sqlDir 'corp_market_assertions.sql'
         }
         foreach ($f in $run) {
             Write-Host "---- $f"
