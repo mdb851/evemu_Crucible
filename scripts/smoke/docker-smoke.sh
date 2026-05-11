@@ -50,6 +50,10 @@ deadline=$(( $(date +%s) + MAX_WAIT ))
 until db_sql -e "SELECT 1" >/dev/null 2>&1; do
   if (( $(date +%s) > deadline )); then
     echo "MariaDB not ready within ${MAX_WAIT}s" >&2
+    echo "==> docker compose ps -a" >&2
+    docker compose ps -a >&2 || true
+    echo "==> docker compose logs db (tail)" >&2
+    docker compose logs db --tail 200 >&2 || true
     exit 1
   fi
   sleep 2

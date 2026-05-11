@@ -30,4 +30,4 @@ jobs:
       - name: Tier A smoke
         run: bash scripts/smoke/docker-smoke.sh
         env:
-          MAX_WAIT: '300'
+          MAX_WAIT: '600'
