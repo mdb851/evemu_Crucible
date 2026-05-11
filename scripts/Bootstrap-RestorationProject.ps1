@@ -172,7 +172,7 @@ Write-Host @"
 Done.
 
 Next in the GitHub UI:
-1. Open the project → set **Slice** and **Live status** on each row (defaults: Slice matches title; Live status = Unchecked).
-2. Optional: add a **Board** view grouped by **Live status**.
+1. Open the project - set Slice and Live status on each row (hint: Slice matches the issue title; Live status = Unchecked).
+2. Optional: add a Board view grouped by Live status.
 
 "@
