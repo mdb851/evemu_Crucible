@@ -207,7 +207,9 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 **Ninth compile-first probe (temporary; reverted):** Full **probe-eight** set plus **`character/Skill.cpp`**. **Compile OK, link failed.** **`Skill::SkillPrereqsComplete`**, **`Skill::VerifyAttribs`**, **`Skill::GetSPForLevel`**, **`Skill::GetCurrentSP`**, etc., no longer head the tail — probe nine **cleared the Skill TU gap** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`Character.cpp.o`** — **`StandingDB::GetStanding`**, **`StandingDB::SetStanding`**, **`StatisticMgr::Add`**, **`StatisticMgr::StatisticMgr()`**, then **`CertificateMgrDB`**, **`FleetService`**, **`FxDataMgr`**, **`ItemDB`**, … **Reverted** to 5-TU baseline.
 
-Next compile-first probe (tenth): keep the **full probe-nine** TU set; add **`standing/StandingDB.cpp`** first, rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — add **`StatisticMgr.cpp`** (root) only if **`StatisticMgr::*`** still heads the tail after **`StandingDB`**.
+**Tenth compile-first probe (temporary; reverted):** Full **probe-nine** set plus **`standing/StandingDB.cpp`**. **Compile OK, link failed.** **`StandingDB::GetStanding`** / **`SetStanding`** no longer head the tail — probe ten **cleared the standing DB slice** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`Character.cpp.o`** — **`StatisticMgr::Add`**, **`StatisticMgr::StatisticMgr()`** (`PayBounty`), then **`CertificateMgrDB`**, **`FleetService`**, **`ConsoleCommand`**, **`FxDataMgr`**, **`FxProc`**, **`ItemDB`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (eleventh): keep the **full probe-ten** TU set; add **`StatisticMgr.cpp`** (repo root) only, rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — defer **`CertificateMgrDB`**, fleet/console/fx/item DB TUs until the next tail forces them.
 
 ## Hard project rules
 - Restoration first
