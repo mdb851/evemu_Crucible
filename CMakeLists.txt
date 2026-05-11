@@ -10,7 +10,7 @@
 ###############
 # We need a target-specific property INCLUDE_DIRECTORIES which
 # is part of CMake 2.8.8 and later.
-CMAKE_MINIMUM_REQUIRED( VERSION 2.8.8 FATAL_ERROR )
+CMAKE_MINIMUM_REQUIRED( VERSION 3.15 FATAL_ERROR )
 
 PROJECT( "evemu" )
 SET( PROJECT_DESCRIPTION_SUMMARY "A server emulator for EVE Online" )
@@ -28,11 +28,13 @@ ENABLE_TESTING()
 # Options #
 ###########
 SET( AUTO_DOWNLOAD_DEPENDENCIES OFF
-     CACHE BOOL "When CHECKED, CMake will automatically download Boost and MySQL, otherwise, CMake will look for them in locations specified by 'Boost_DIR', 'Boost_INCLUDE_DIR', 'MYSQL_INCLUDE_DIRS', and 'MYSQL_LIBRARIES'" )
+     CACHE BOOL "When CHECKED, CMake will automatically download Boost and MySQL, otherwise, CMake will look for them in locations specified by 'Boost_DIR', 'Boost_INCLUDE_DIR', 'MYSQL_INCLUDE_DIR[...]
 SET( EVEMU_ROOT ".."
      CACHE PATH "The root directory of EVEmu workspace." )
 SET( TIXML_USE_STL ON
      CACHE BOOL "tinyxml will use native STL." )
+SET( EVEMU_BUILD_TESTS OFF
+     CACHE BOOL "Build eve-test regression suite." )
 
 IF( CMAKE_CROSSCOMPILING )
   SET( EVEMU_TARGETS_IMPORT ""
@@ -227,3 +229,7 @@ ADD_SUBDIRECTORY( "src/eve-core" )
 ADD_SUBDIRECTORY( "src/eve-xmlpktgen" )
 ADD_SUBDIRECTORY( "src/eve-common" )
 ADD_SUBDIRECTORY( "src/eve-server" )
+
+IF( EVEMU_BUILD_TESTS )
+  ADD_SUBDIRECTORY( "src/eve-test" )
+ENDIF( EVEMU_BUILD_TESTS )
