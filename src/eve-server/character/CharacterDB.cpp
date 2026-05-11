@@ -1216,6 +1216,21 @@ uint32 CharacterDB::GetStartingStationByCareer(uint32 careerID)
     return row.GetUInt(0);
 }
 
+void CharacterDB::ClearPaperDollAppearanceData(uint32 charID)
+{
+    DBerror err;
+    sDatabase.RunQuery(err, "DELETE FROM avatar_colors WHERE charID = %u", charID);
+    sDatabase.RunQuery(err, "DELETE FROM avatar_modifiers WHERE charID = %u", charID);
+    sDatabase.RunQuery(err, "DELETE FROM avatar_sculpts WHERE charID = %u", charID);
+    sDatabase.RunQuery(err, "DELETE FROM avatars WHERE charID = %u", charID);
+}
+
+void CharacterDB::ClearChrPortraitData(uint32 charID)
+{
+    DBerror err;
+    sDatabase.RunQuery(err, "DELETE FROM chrPortraitData WHERE charID = %u", charID);
+}
+
 void CharacterDB::SetAvatar(uint32 charID, PyRep* hairDarkness) {
 	//populate the DB with avatar information
 	DBerror err;

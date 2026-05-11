@@ -27,6 +27,79 @@
 
 
 #include "character/PaperDollService.h"
+#include "character/Character.h"
+
+namespace {
+
+/** util.KeyVal wraps a PyDict in arguments(); raw dict also accepted. */
+PyDict* PaperDollRepToDict(PyRep* rep)
+{
+    if (rep == nullptr || rep->IsNone())
+        return nullptr;
+    if (rep->IsDict())
+        return rep->AsDict();
+    if (rep->IsObject()) {
+        PyRep* args = rep->AsObject()->arguments();
+        if (args != nullptr && args->IsDict())
+            return args->AsDict();
+    }
+    return nullptr;
+}
+
+bool PaperDollDollDictHasBodyFields(PyDict* d)
+{
+    if (d == nullptr)
+        return false;
+    PyRep* colors = d->GetItemString("colors");
+    PyRep* appearance = d->GetItemString("appearance");
+    PyRep* modifiers = d->GetItemString("modifiers");
+    PyRep* sculpts = d->GetItemString("sculpts");
+    return colors != nullptr && !colors->IsNone() && colors->IsList()
+        && appearance != nullptr && !appearance->IsNone() && appearance->IsObjectEx()
+        && modifiers != nullptr && !modifiers->IsNone() && modifiers->IsList()
+        && sculpts != nullptr && !sculpts->IsNone() && sculpts->IsList();
+}
+
+bool PaperDollPortraitDictLooksUsable(PyDict* d)
+{
+    if (d == nullptr)
+        return false;
+    PyRep* bg = d->GetItemString("backgroundID");
+    PyRep* pose = d->GetItemString("poseData");
+    return bg != nullptr && !bg->IsNone() && pose != nullptr && !pose->IsNone() && pose->IsDict();
+}
+
+bool ApplyPaperDollUpdate(uint32 charID, PyRep* dollRep, PyBool* dollExists, PyRep* portraitRep)
+{
+    CharacterDB db;
+
+    PyDict* dollDict = PaperDollRepToDict(dollRep);
+    const bool applyDoll = (dollExists == nullptr) ? (dollDict != nullptr) : dollExists->value();
+    if (applyDoll && dollDict != nullptr) {
+        if (!PaperDollDollDictHasBodyFields(dollDict)) {
+            codelog(SERVICE__ERROR, "ApplyPaperDollUpdate: incomplete doll payload for char %u", charID);
+        } else {
+            db.ClearPaperDollAppearanceData(charID);
+            CharacterAppearance appearance;
+            appearance.Build(charID, dollDict);
+        }
+    }
+
+    PyDict* portraitDict = PaperDollRepToDict(portraitRep);
+    if (portraitDict != nullptr) {
+        if (!PaperDollPortraitDictLooksUsable(portraitDict)) {
+            codelog(SERVICE__ERROR, "ApplyPaperDollUpdate: incomplete portrait payload for char %u", charID);
+        } else {
+            db.ClearChrPortraitData(charID);
+            CharacterPortrait portrait;
+            portrait.Build(charID, portraitDict);
+        }
+    }
+
+    return true;
+}
+
+} // namespace
 
 PaperDollService::PaperDollService() :
     Service("paperDollServer", eAccessLevel_Character)
@@ -54,24 +127,24 @@ PyResult PaperDollService::ConvertAndSavePaperDoll(PyCallArgs &call) {
 
 PyResult PaperDollService::UpdateExistingCharacterFull(PyCallArgs &call, PyInt* characterID, PyRep* dollInfo, PyRep* portraitInfo, PyBool* dollExists) {
     call.Dump(PLAYER__CALL_DUMP);
-    /*
-        sm.RemoteSvc('paperDollServer').UpdateExistingCharacterFull(charID, dollInfo, portraitInfo, dollExists)
-        */
-    return nullptr;
+    if (characterID->value() != call.client->GetCharacterID()) {
+        codelog(SERVICE__ERROR, "UpdateExistingCharacterFull: charID %u != client char %u", characterID->value(), call.client->GetCharacterID());
+        return nullptr;
+    }
+    if (!ApplyPaperDollUpdate(characterID->value(), dollInfo, dollExists, portraitInfo))
+        return nullptr;
+    return new PyBool(true);
 }
 
 PyResult PaperDollService::UpdateExistingCharacterLimited(PyCallArgs &call, PyInt* characterID, PyRep* dollData, PyRep* portraitInfo, PyBool* dollExists) {
     call.Dump(PLAYER__CALL_DUMP);
-    /*
-        sm.RemoteSvc('paperDollServer').UpdateExistingCharacterLimited(charID, dollData, portraitInfo, dollExists)
-        */
-    /*)
-00:46:38 [SvcCall] Service photoUploadSvc::Upload()
-00:46:38 W       ImageServer:  ReportNewImage() called.
-00:46:38 M    PhotoUploadSvc: Received image from account 3, size: 57621
-00:46:39 [SvcCall] Service paperDollServer::UpdateExistingCharacterLimited()
-*/
-    return nullptr;
+    if (characterID->value() != call.client->GetCharacterID()) {
+        codelog(SERVICE__ERROR, "UpdateExistingCharacterLimited: charID %u != client char %u", characterID->value(), call.client->GetCharacterID());
+        return nullptr;
+    }
+    if (!ApplyPaperDollUpdate(characterID->value(), dollData, dollExists, portraitInfo))
+        return nullptr;
+    return new PyBool(true);
 }
 
 PyResult PaperDollService::GetPaperDollPortraitDataFor(PyCallArgs &call, PyInt* characterID) {

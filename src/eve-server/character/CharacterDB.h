@@ -117,6 +117,11 @@ public:
 
     static PyRep *GetCharacterList(uint32 accountID);
     static PyRep *GetCharSelectInfo(uint32 charID);
+    /** Remove body paper-doll rows before re-saving (re-customization / UpdateExistingCharacter*). */
+    void ClearPaperDollAppearanceData(uint32 charID);
+    /** Remove portrait row before Insert in SetPortraitInfo. */
+    void ClearChrPortraitData(uint32 charID);
+
     void SetAvatar(uint32 charID, PyRep* hairDarkness);
     void SetAvatarColors(uint32 charID, uint32 colorID, uint32 colorNameA, uint32 colorNameBC, double weight, double gloss);
     void SetAvatarModifiers(uint32 charID, PyRep* modifierLocationID,  PyRep* paperdollResourceID, PyRep* paperdollResourceVariation);
