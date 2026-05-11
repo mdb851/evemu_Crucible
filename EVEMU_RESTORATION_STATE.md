@@ -25,7 +25,7 @@
 
 **Remaining risk:** Legacy rows with **`acceptorWalletKey != 0`** and **`acceptorCorpID == 0`** (accepted before migration) are **rejected** at completion with a migration/recreate message; plastic wrap / cargo ownership stays **character** (courier pilot).
 
-**Next slice:** Live verification matrix row for contracts, or backlog PvP / mining.
+**Next slice:** Batched **live smoke** on this branch (contracts). **Optional later code:** courier **`CreateContract`** reward pre-pay for **`forCorp`** issuers (still character-only). **Matrix backlog** (PvP, mining, industry, corp market smoke) — separate restoration slices, not part of this contract branch.
 
 ---
 
