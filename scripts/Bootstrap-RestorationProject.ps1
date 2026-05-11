@@ -80,7 +80,7 @@ function IssueBody {
 $Slice
 
 ## Priority (project field)
-**$Priority** — also set the **Priority** column on the project board.
+**$Priority** - also set the **Priority** column on the project board.
 
 ## Goal
 $Goal
@@ -90,7 +90,7 @@ $Goal
 2. 
 
 ## Expected
-(Client + server / DB — be specific.)
+(Client + server / DB - be specific.)
 
 ## Actual / evidence
 (Paste or link.)
@@ -99,37 +99,37 @@ $Goal
 ``master`` @ ``$ShortSha``
 
 ## Related
-- ``EVEMU_RESTORATION_STATE.md`` — verification matrix
+- ``EVEMU_RESTORATION_STATE.md`` - verification matrix
 "@
 }
 
 $issueSpecs = @(
     @{
-        Title    = "[Restore] PvP — aggression → kill → cleanup"
-        Slice    = "PvP aggression → damage → kill → cleanup"
+        Title    = "[Restore] PvP - aggression -> kill -> cleanup"
+        Slice    = "PvP aggression -> damage -> kill -> cleanup"
         Priority = "High"
         Goal     = "PvP combat resolves damage, death, and cleanup correctly end-to-end."
     },
     @{
-        Title    = "[Restore] Mining — cycle → ore hold → persistence"
-        Slice    = "Mining cycle → ore to hold / persistence"
+        Title    = "[Restore] Mining - cycle -> ore hold -> persistence"
+        Slice    = "Mining cycle -> ore to hold / persistence"
         Priority = "High"
         Goal     = "Mining cycle deposits ore into the appropriate hold and survives relog / DB state."
     },
     @{
-        Title    = "[Restore] Contracts — create → accept → complete → ISK/items"
-        Slice    = "Contracts create → accept → complete → ISK/items"
+        Title    = "[Restore] Contracts - create -> accept -> complete -> ISK/items"
+        Slice    = "Contracts create -> accept -> complete -> ISK/items"
         Priority = "High"
         Goal     = "Item exchange and courier flows complete with correct wallets and item ownership."
     },
     @{
-        Title    = "[Restore] Industry — manufacturing jobs"
+        Title    = "[Restore] Industry - manufacturing jobs"
         Slice    = "Industry / manufacturing jobs"
         Priority = "Medium"
         Goal     = "Manufacturing jobs install, run, and deliver outputs consistently."
     },
     @{
-        Title    = "[Restore] Exploration — scanning"
+        Title    = "[Restore] Exploration - scanning"
         Slice    = "Exploration / scanning"
         Priority = "Medium"
         Goal     = "Scanning interactions match Crucible-era expectations without server exceptions."
