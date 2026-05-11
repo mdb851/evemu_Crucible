@@ -137,7 +137,7 @@ No blocker on insurance.
 - **ShipService.cpp:** Eject/Board/SelfDestruct velocity gate; **SelfDestruct** flexible RPC args + fatal kill; Board cyno message corrected.
 - **MarketProxyService:** ModifyCharOrder `bid` PyBool (Crucible); corp market unblocked + corp-aware modify/cancel + corp sell ownership gate.
 - **PaperDollService.cpp / CharacterDB:** appearance re-customize persists to `avatars` / `avatar_*` / `chrPortraitData`; `GetPaperDollData` returns full paper-doll KeyVal (commits through `41183ce4` on `restoration/contract-accept-corp`).
-- **`scripts/smoke/`:** Tier A **`docker-smoke.ps1`** (compose build/up, DB ready, server log line, `ctrContracts` column smoke) + Tier B SQL templates for courier + paper doll; see **`scripts/smoke/README.md`**.
+- **`scripts/smoke/`:** Tier A **`docker-smoke.ps1`** / **`docker-smoke.sh`** (compose build/up, DB ready, server log line, `ctrContracts` column smoke) + Tier B SQL templates for courier + paper doll; see **`scripts/smoke/README.md`**. CI: **`.github/workflows/docker-smoke.yml`** (Tier A on `master` / `staging` / `restoration/**`).
 
 ## Insurance test fixture (historical)
 - Bantam typeID=582; Caldari Frigate skill gate resolved for boarding.
@@ -157,6 +157,7 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 |-------|--------|
 | `docker compose build server` | PASS |
 | **`pwsh .\scripts\smoke\docker-smoke.ps1 -SkipBuild -SkipUp`** (after stack already up) | Tier A baseline — run locally when Docker available |
+| **`bash scripts/smoke/docker-smoke.sh`** (or **`.github/workflows/docker-smoke.yml`** on `restoration/**` / `master` / `staging`) | Same Tier A checks on Linux / CI |
 | `docker compose config`: default **`RUN_WITH_GDB`** | **`"FALSE"`** |
 | Same with **`$env:RUN_GDB='TRUE'`** (PowerShell) then **`docker compose config`** | **`"TRUE"`** |
 | **`SHOW COLUMNS FROM ctrContracts`** incl. **`issuerCorpID`**, **`acceptorID`**, **`issuerWalletKey`**, **`acceptorCorpID`** (after **`20260510120000`** migrate) | PASS once migrated |

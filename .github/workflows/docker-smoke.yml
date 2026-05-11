@@ -1,0 +1,30 @@
+name: Docker smoke (Tier A)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - staging
+      - 'restoration/**'
+  pull_request:
+    branches:
+      - master
+      - staging
+      - 'restoration/**'
+
+concurrency:
+  group: docker-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tier-a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tier A smoke
+        run: bash scripts/smoke/docker-smoke.sh
+        env:
+          MAX_WAIT: '300'

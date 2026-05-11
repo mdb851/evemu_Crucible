@@ -112,7 +112,7 @@ SELECT IF(
 
     if ($PostClientAssertions -ne 'none') {
         Write-Host '==> Post-client SQL (Tier B — inspect output manually; does not affect exit code)...'
-        $sqlDir = Join-Path $RepoRoot 'scripts\smoke\sql'
+        $sqlDir = [System.IO.Path]::Combine($RepoRoot, 'scripts', 'smoke', 'sql')
         $run = @()
         if ($PostClientAssertions -eq 'contracts' -or $PostClientAssertions -eq 'all') {
             $run += Join-Path $sqlDir 'contracts_courier_assertions.sql'

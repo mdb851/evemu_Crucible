@@ -2,13 +2,29 @@
 
 Narrow, repeatable checks for **infrastructure** and **optional post-client DB evidence**. This does **not** automate the Crucible client or login.
 
-## Tier A — `docker-smoke.ps1` (default)
+## Tier A — PowerShell or Bash
 
-From the **repository root** (where `docker-compose.yml` lives):
+From the **repository root** (where `docker-compose.yml` lives).
+
+**Windows (recommended):**
 
 ```powershell
 pwsh .\scripts\smoke\docker-smoke.ps1
 ```
+
+**Linux / macOS / GitHub Actions:**
+
+```bash
+bash scripts/smoke/docker-smoke.sh
+```
+
+Optional: extend the wait window for slow hosts or CI:
+
+```bash
+MAX_WAIT=300 bash scripts/smoke/docker-smoke.sh
+```
+
+CI: `.github/workflows/docker-smoke.yml` runs **`docker-smoke.sh`** on pushes and PRs to **`master`**, **`staging`**, and **`restoration/**`** (plus **workflow_dispatch**).
 
 Optional:
 
