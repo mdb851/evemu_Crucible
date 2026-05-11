@@ -28,34 +28,6 @@
 
 ---
 
-### Suggested Git commit (copy/paste)
-
-**Title:**
-```text
-restoration: harden corp contract accept path and restore RUN_GDB compose
-```
-
-**Body:**
-```text
-restoration: harden corp contract accept path and restore RUN_GDB compose
-
-- restore docker-compose RUN_WITH_GDB=${RUN_GDB:-FALSE}
-- restrict corp request-stack lookup to active corp wallet division
-- require matching HangarCanTake role for selected division
-- make acceptorForCorp optional PyBool handling null-safe
-- use active corp account key for acceptor balance/reward/price flows
-- courier CompleteContract: issuer corp wallet, reward TransferFunds, acceptor check
-- update restoration state notes for validated fixes and remaining gaps
-
-Known remaining gaps:
-- issuer corp wallet division still inferred when issuerWalletKey is 0 on ctrContracts
-- corp courier AcceptContract (corp collateral / acceptorWalletKey) still needs a slice
-```
-
-*(Amend the body bullet list if this commit only contains the courier slice vs the earlier accept-path/docker edits.)*
-
----
-
 ### Completed slices archive (this sprint)
 
 | Slice | Status |
