@@ -182,6 +182,17 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 **Boundary:** **`contractProxy.CompleteContract`** / **`AcceptContract`** semantics (wallet mutations, hangar moves) were **not** executed end-to-end here — that needs either live client testing or adding **`eve-test`** (or similar) to CMake + Docker and scripting DB fixtures.
 
+## Tier A CI + compile-first probe log (May 11, 2026)
+
+**Tier A (`docker-smoke` on `restoration/contract-accept-corp`):** **PASS** — GitHub Actions run **`25682646510`** (~**5m42s**), head at **`008d6fee`**.
+
+- **Diagnosis:** `mariadb` CLI parsed **`-ueva`** as user **`eva`** instead of **`-u evemu`** + password; readiness loop never saw a clean DB session.
+- **Fix (smallest):** use **`mariadb -u evemu -pevemu evemu`** in Tier A smoke scripts (**`008d6fee`**). Earlier **`4f06d63e`** raised **`MAX_WAIT`** to **600** and added timeout dumps (**`docker compose ps -a`**, **`docker compose logs db --tail 200`**) for classification only.
+
+**Permanent `eve-server-testlib` baseline (when `EVEMU_BUILD_TESTS=ON`):** **`contract/ContractUtils.cpp`**, **`account/AccountDB.cpp`**, **`services/Callable.cpp`**, **`Profiler.cpp`**, **`EVEServerConfig.cpp`**. **`ServerLinkSmokeTest`** in **`src/eve-test`** links **`eve-server-testlib`** with **`--whole-archive`** so a few server TUs resolve without pulling **`libeve-server`**.
+
+**Second compile-first probe (temporary; not in committed tree):** Added **`contract/ContractProxy.cpp`** and **`account/AccountService.cpp`** to **`eve-server-testlib`**, rebuilt **`eve-test`**. **First linker failure cluster** was entirely from **`AccountService.cpp.o`**: missing **`Character::balance`**, **`Character::AlterBalance`**, **`ClientSession::GetCurrentInt`**, **`EntityList::FindClientByCharID`**, **`EntityList::CorpNotify`**, **`EntityList`** ctor/dtor, **`CorporationDB::GetCorpName`**, **`GetDivisionName`**, **`CharacterDB::GetCorpTaxRate`**, **`GetCorpID`**, **`StaticDataMgr::GetCorpName`**, **`StaticDataMgr::~StaticDataMgr`**, and related **`EntityList`** / cold-path dtors. **Probe sources reverted** after capture; **`EVEMU_BUILD_TESTS`** baseline unchanged for merge.
+
 ## Hard project rules
 - Restoration first
 - No solo customization during restoration

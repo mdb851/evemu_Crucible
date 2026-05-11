@@ -772,3 +772,26 @@ INSTALL( TARGETS "${TARGET_NAME}"
          RUNTIME DESTINATION "bin" )
 INSTALL( FILES "${TARGET_UTILS_DIR}/config/devtools.raw"
          DESTINATION "etc" )
+
+IF( EVEMU_BUILD_TESTS )
+  SET( EVE_SERVER_TESTLIB_NAME "eve-server-testlib" )
+  # Link-smoke baseline (5 TU). Widen only for time-boxed compile/link probes; revert after first failure cluster.
+  ADD_LIBRARY( "${EVE_SERVER_TESTLIB_NAME}" STATIC
+               "${TARGET_SOURCE_DIR}/contract/ContractUtils.cpp"
+               "${TARGET_SOURCE_DIR}/account/AccountDB.cpp"
+               "${TARGET_SOURCE_DIR}/services/Callable.cpp"
+               "${TARGET_SOURCE_DIR}/Profiler.cpp"
+               "${TARGET_SOURCE_DIR}/EVEServerConfig.cpp" )
+  SOURCE_GROUP( "src\\contract" FILES "${TARGET_SOURCE_DIR}/contract/ContractUtils.cpp" )
+  SOURCE_GROUP( "src\\account"  FILES "${TARGET_SOURCE_DIR}/account/AccountDB.cpp" )
+  SOURCE_GROUP( "src\\services" FILES "${TARGET_SOURCE_DIR}/services/Callable.cpp" )
+  SOURCE_GROUP( "src"           FILES "${TARGET_SOURCE_DIR}/Profiler.cpp"
+                                      "${TARGET_SOURCE_DIR}/EVEServerConfig.cpp" )
+  target_precompile_headers( "${EVE_SERVER_TESTLIB_NAME}" PUBLIC
+                             "${TARGET_INCLUDE_DIR}/eve-server.h" )
+  TARGET_INCLUDE_DIRECTORIES( "${EVE_SERVER_TESTLIB_NAME}"
+                              ${eve-common_INCLUDE_DIRS}
+                              "${TARGET_INCLUDE_DIR}" )
+  TARGET_LINK_LIBRARIES( "${EVE_SERVER_TESTLIB_NAME}"
+                         "eve-common" )
+ENDIF( EVEMU_BUILD_TESTS )

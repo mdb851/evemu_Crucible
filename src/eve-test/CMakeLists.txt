@@ -27,6 +27,8 @@ SET( marshal_SOURCE
      "marshal/EVEMarshalTest.cpp" )
 SET( utils_SOURCE
      "utils/EvilNumberTest.cpp" )
+SET( server_SOURCE
+     "server/ServerLinkSmokeTest.cpp" )
 
 ########################
 # Setup the executable #
@@ -35,11 +37,13 @@ SOURCE_GROUP( "src"      ${INCLUDE} )
 SOURCE_GROUP( "src\\auth"    ${auth_SOURCE} )
 SOURCE_GROUP( "src\\marshal" ${marshal_SOURCE} )
 SOURCE_GROUP( "src\\utils"   ${utils_SOURCE} )
+SOURCE_GROUP( "src\\server"  ${server_SOURCE} )
 
 CREATE_TEST_SOURCELIST( TARGET_SOURCELIST "eve-test.cpp"
                         ${auth_SOURCE}
                         ${marshal_SOURCE}
                         ${utils_SOURCE}
+                        ${server_SOURCE}
                         EXTRA_INCLUDE "eve-test.h" )
 ADD_EXECUTABLE( "${TARGET_NAME}"
                 ${TARGET_SOURCELIST} )
@@ -51,9 +55,14 @@ target_precompile_headers( "${TARGET_NAME}" PUBLIC
                   "${TARGET_INCLUDE_DIR}/eve-test.h" )
 TARGET_INCLUDE_DIRECTORIES( "${TARGET_NAME}"
                             ${eve-common_INCLUDE_DIRS}
-                            "${TARGET_INCLUDE_DIR}" )
+                            "${TARGET_INCLUDE_DIR}"
+                            "${PROJECT_SOURCE_DIR}/src/eve-server" )
+# GNU ld: pull all eve-server-testlib objects so Profiler symbols resolve vs eve-core order.
 TARGET_LINK_LIBRARIES( "${TARGET_NAME}"
-                       "eve-common" )
+                       "eve-common"
+                       "-Wl,--whole-archive"
+                       "eve-server-testlib"
+                       "-Wl,--no-whole-archive" )
 
 #########
 # Tests #
@@ -64,3 +73,5 @@ ADD_TEST( NAME "EVEMarshalTest"
           COMMAND "${TARGET_NAME}" "marshal/EVEMarshalTest" )
 ADD_TEST( NAME "EvilNumberTest"
           COMMAND "${TARGET_NAME}" "utils/EvilNumberTest" )
+ADD_TEST( NAME "ServerLinkSmokeTest"
+          COMMAND "${TARGET_NAME}" "server/ServerLinkSmokeTest" )
