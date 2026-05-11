@@ -8,6 +8,9 @@
         pwsh .\scripts\smoke\docker-smoke.ps1
 
     Optional -PostClientAssertions runs Tier B SQL files for human inspection (exit code unchanged).
+
+    Wait budget: each of MariaDB and server-log polling gets up to -MaxWaitSeconds (default 180).
+    If the environment variable MAX_WAIT is set to a positive integer, it overrides -MaxWaitSeconds (same as docker-smoke.sh).
 #>
 [CmdletBinding()]
 param(
@@ -19,6 +22,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Match docker-smoke.sh: optional MAX_WAIT env overrides -MaxWaitSeconds (e.g. CI sets MAX_WAIT=300).
+if ($env:MAX_WAIT -match '^\d+$') {
+    $MaxWaitSeconds = [int]$env:MAX_WAIT
+}
 
 function Get-RepoRoot {
     $here = $PSScriptRoot
@@ -54,11 +62,11 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "docker compose up failed (exit $LASTEXITCODE)." }
     }
 
-    $deadline = (Get-Date).AddSeconds($MaxWaitSeconds)
+    $dbDeadline = (Get-Date).AddSeconds($MaxWaitSeconds)
 
     Write-Host '==> Waiting for MariaDB (evemu database)...'
     $dbOk = $false
-    while ((Get-Date) -lt $deadline) {
+    while ((Get-Date) -lt $dbDeadline) {
         try {
             Invoke-DbSql 'SELECT 1 AS ok;' | Out-Null
             $dbOk = $true
@@ -70,10 +78,13 @@ try {
     if (-not $dbOk) { throw "MariaDB not ready within $MaxWaitSeconds s." }
     Write-Host '    MariaDB OK.'
 
+    # Fresh budget for server boot log (same semantics as docker-smoke.sh).
+    $srvDeadline = (Get-Date).AddSeconds($MaxWaitSeconds)
+
     Write-Host '==> Waiting for game server log (TCP Server started on port)...'
     $srvOk = $false
-    while ((Get-Date) -lt $deadline) {
-        $log = docker logs server 2>&1 | Out-String
+    while ((Get-Date) -lt $srvDeadline) {
+        $log = docker logs server --tail 500 2>&1 | Out-String
         if ($log -match 'TCP Server started on port') {
             $srvOk = $true
             break

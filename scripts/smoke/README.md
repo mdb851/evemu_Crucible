@@ -24,7 +24,20 @@ Optional: extend the wait window for slow hosts or CI:
 MAX_WAIT=300 bash scripts/smoke/docker-smoke.sh
 ```
 
-CI: `.github/workflows/docker-smoke.yml` runs **`docker-smoke.sh`** on pushes and PRs to **`master`**, **`staging`**, and **`restoration/**`** (plus **workflow_dispatch**).
+PowerShell honors the same variable if set **before** invocation (it overrides `-MaxWaitSeconds`):
+
+```powershell
+$env:MAX_WAIT = '300'
+pwsh .\scripts\smoke\docker-smoke.ps1
+```
+
+CI: `.github/workflows/docker-smoke.yml` runs **`docker-smoke.sh`** on pushes and PRs to **`master`**, **`staging`**, and **`restoration/**`** (plus **workflow_dispatch**), with **`permissions: contents: read`** and **`MAX_WAIT=300`**.
+
+### Troubleshooting (Actions / forks)
+
+- Ensure **GitHub Actions** is enabled for the repository (forks may default to off until approved).
+- First-time contributors: some orgs require **workflow approval** for PRs from forks; check the **Actions** tab for a pending run.
+- If the job times out during `docker compose build`, increase **`MAX_WAIT`** in the workflow env or split caching (future work).
 
 Optional:
 

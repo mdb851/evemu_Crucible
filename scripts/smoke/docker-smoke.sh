@@ -59,7 +59,7 @@ echo "    MariaDB OK."
 echo "==> Waiting for game server log (TCP Server started on port)..."
 deadline=$(( $(date +%s) + MAX_WAIT ))
 while true; do
-  if docker logs server 2>&1 | grep -Fq "TCP Server started on port"; then
+  if docker logs server --tail 500 2>&1 | grep -Fq "TCP Server started on port"; then
     break
   fi
   if (( $(date +%s) > deadline )); then
