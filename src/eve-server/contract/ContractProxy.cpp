@@ -37,6 +37,42 @@
 
 #include "contract/ContractUtils.h"
 #include "account/AccountService.h"
+#include "account/AccountDB.h"
+
+namespace {
+
+/** Locate a stack at station owned by contributor with enough qty; corp acceptance searches all corp hangar divisions. */
+int FindRequestStackInStationHangars(Inventory* inv, uint16 typeID, uint32 qty, uint32 contributorOwnerID, bool acceptorForCorp)
+{
+    static const EVEItemFlags corpHangarFlags[] = {
+        flagHangar,
+        flagCorpHangar2,
+        flagCorpHangar3,
+        flagCorpHangar4,
+        flagCorpHangar5,
+        flagCorpHangar6,
+        flagCorpHangar7
+    };
+
+    if (acceptorForCorp) {
+        for (EVEItemFlags fl : corpHangarFlags) {
+            std::vector<InventoryItemRef> itemVec;
+            inv->GetItemsByFlag(fl, itemVec);
+            for (const auto& cur : itemVec)
+                if (cur->ownerID() == contributorOwnerID && cur->typeID() == typeID && cur->quantity() >= qty)
+                    return cur->itemID();
+        }
+    } else {
+        std::vector<InventoryItemRef> itemVec;
+        inv->GetItemsByFlag(flagHangar, itemVec);
+        for (const auto& cur : itemVec)
+            if (cur->ownerID() == contributorOwnerID && cur->typeID() == typeID && cur->quantity() >= qty)
+                return cur->itemID();
+    }
+    return 0;
+}
+
+} // namespace
 
 ContractProxy::ContractProxy () :
     Service("contractProxy")
@@ -49,7 +85,8 @@ ContractProxy::ContractProxy () :
     this->Add("CreateContract", static_cast <PyResult(ContractProxy::*)(PyCallArgs &,PyInt*, PyBool*, std::optional <PyNone*>, PyInt*, PyInt*, PyInt*, std::optional <PyNone*>, PyInt*, PyInt*, PyInt*, PyWString*,PyString*)> (&ContractProxy::CreateContract));
     this->Add("CreateContract", static_cast <PyResult(ContractProxy::*)(PyCallArgs&, PyInt*, PyInt*, std::optional <PyInt*>, PyInt*, PyInt*, PyInt*, std::optional<PyInt*>, PyInt*, PyInt*, PyInt*, PyWString*, PyWString*)> (&ContractProxy::CreateContract));
     this->Add("DeleteContract", &ContractProxy::DeleteContract);
-    this->Add("AcceptContract", &ContractProxy::AcceptContract);
+    this->Add("AcceptContract", static_cast<PyResult (ContractProxy::*)(PyCallArgs &, PyInt*)>(&ContractProxy::AcceptContract));
+    this->Add("AcceptContract", static_cast<PyResult (ContractProxy::*)(PyCallArgs &, PyInt*, std::optional<PyBool*>)>(&ContractProxy::AcceptContract));
     this->Add("CompleteContract", &ContractProxy::CompleteContract);
     this->Add("GetLoginInfo", &ContractProxy::GetLoginInfo);
     this->Add("SearchContracts", &ContractProxy::SearchContracts);
@@ -477,10 +514,17 @@ PyResult ContractProxy::GetContract(PyCallArgs &call, PyInt* contractID) {
 }
 
 PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID) {
-    // For the time being - we ignore the second value in tuple (forCorp), since it's not yet functional.
+    return AcceptContract(call, contractID, std::nullopt);
+}
+
+PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std::optional<PyBool*> acceptorForCorpArg) {
+    const bool acceptorForCorp = acceptorForCorpArg.has_value() && acceptorForCorpArg.value()->value();
 
     DBQueryResult res;
-    if (!sDatabase.RunQuery(res, "SELECT contractType, status, price, reward, collateral, volume, startStationID, issuerID, forCorp, startSolarSystemID, endSolarSystemID FROM ctrContracts WHERE contractId = %u", contractID->value()))
+    if (!sDatabase.RunQuery(res,
+                            "SELECT contractType, status, price, reward, collateral, volume, startStationID, issuerID, issuerCorpID, forCorp, startSolarSystemID, endSolarSystemID "
+                            "FROM ctrContracts WHERE contractId = %u",
+                            contractID->value()))
     {
         codelog(DATABASE__ERROR, "Error in query: %s", res.error.c_str());
         return nullptr;
@@ -498,9 +542,13 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID) {
     float volume = row.GetFloat(5);
     int startStationID = row.GetInt(6);
     int issuerID = row.GetInt(7);
-    bool forCorp = row.GetBool(8);
-    int startSolarSystemID = row.GetInt(9);
-    int endSolarSystemID = row.GetInt(10);
+    uint32 issuerCorpID = row.GetUInt(8);
+    bool issuerForCorp = row.GetBool(9);
+    int startSolarSystemID = row.GetInt(10);
+    int endSolarSystemID = row.GetInt(11);
+
+    const uint32 issuerWalletID = issuerForCorp ? issuerCorpID : static_cast<uint32>(issuerID);
+    const uint32 acceptorItemOwnerID = acceptorForCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
 
     if (status == 0) {
         // We can only accept outstanding contracts. If it's not - we ignore the call.
@@ -514,25 +562,30 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID) {
                 ContractUtils::GetContractItemIDs(contractID->value(), &tradedItems);
                 ContractUtils::GetRequestedItems(contractID->value(), &requestedItems);
 
+                Inventory* stationInv = sItemFactory.GetStationRef(startStationID)->GetMyInventory();
+
                 // Next, we perform checks to make sure we fit all contract requirements. I won't do it by nesting if loops - i'll just use trigger booleans;
                 bool iskRequirementMet(true), rewardRequirementMet(true), requestedItemsRequirementsMet(true);
                 if (price > 0) {
-                    if (call.client->GetBalance() < price) {
+                    if (acceptorForCorp) {
+                        if (AccountDB::GetCorpBalance(call.client->GetCorporationID(), Account::KeyType::Cash) < price)
+                            iskRequirementMet = false;
+                    } else if (call.client->GetBalance() < price) {
                         iskRequirementMet = false;
                     }
                 }
                 if (reward > 0) {
-                    if (sItemFactory.GetCharacterRef(issuerID)->balance(Account::CreditType::ISK) < reward) {
+                    if (issuerForCorp) {
+                        if (AccountDB::GetCorpBalance(issuerCorpID, Account::KeyType::Cash) < reward)
+                            rewardRequirementMet = false;
+                    } else if (sItemFactory.GetCharacterRef(issuerID)->balance(Account::CreditType::ISK) < reward) {
                         rewardRequirementMet = false;
                     }
                 }
                 if (!requestedItems.empty()) {
                     for (const auto& entry : requestedItems) {
-                        // Since we don't have a direct way to find items by typeID, we go over all items on current station and checking whether we have any of correct type and quantity
-                        // TODO: Implement forCorp loop when corp contracts are unblocked.
-                        if (sItemFactory.GetStationRef(startStationID)->GetMyInventory()->ContainsTypeStackQtyByFlag(entry.first, EVEItemFlags::flagHangar, entry.second) == 0) {
+                        if (FindRequestStackInStationHangars(stationInv, entry.first, entry.second, acceptorItemOwnerID, acceptorForCorp) == 0)
                             requestedItemsRequirementsMet = false;
-                        }
                     }
                 }
 
@@ -540,24 +593,40 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID) {
                 if (iskRequirementMet && rewardRequirementMet && requestedItemsRequirementsMet) {
                     // If we have a reward value - then contract's WTB
                     if (reward > 0) {
-                        AccountService::TransferFunds(issuerID, call.client->GetCharacterID(), reward, "Payment for accepted contract", Journal::EntryType::ContractReward, contractID->value());
+                        AccountService::TransferFunds(issuerWalletID,
+                                                      acceptorItemOwnerID,
+                                                      reward,
+                                                      "Payment for accepted contract",
+                                                      Journal::EntryType::ContractReward,
+                                                      contractID->value(),
+                                                      Account::KeyType::Cash,
+                                                      Account::KeyType::Cash,
+                                                      call.client);
                     }
 
                     // If we have price value - then contract's WTS
                     if (price > 0) {
-                        AccountService::TransferFunds(call.client->GetCharacterID(), issuerID, price, "Payment for accepted contract", Journal::EntryType::ContractPrice, contractID->value());
+                        AccountService::TransferFunds(acceptorItemOwnerID,
+                                                      issuerWalletID,
+                                                      price,
+                                                      "Payment for accepted contract",
+                                                      Journal::EntryType::ContractPrice,
+                                                      contractID->value(),
+                                                      Account::KeyType::Cash,
+                                                      Account::KeyType::Cash,
+                                                      call.client);
                     }
 
                     // Then, we go for requested items
                     if (!requestedItems.empty()) {
                         for (auto entry : requestedItems) {
-                            int entityID = sItemFactory.GetStationRef(startStationID)->GetMyInventory()->ContainsTypeStackQtyByFlag(entry.first, flagHangar, entry.second);
-                            if (sItemFactory.GetStationRef(startStationID)->GetMyInventory()->GetByID(entityID)->quantity() > entry.second) {
+                            int entityID = FindRequestStackInStationHangars(stationInv, entry.first, entry.second, acceptorItemOwnerID, acceptorForCorp);
+                            if (stationInv->GetByID(entityID)->quantity() > entry.second) {
                                 // If located stack contains more than we need, we split it and transfer the required amount.
-                                sItemFactory.GetStationRef(startStationID)->GetMyInventory()->GetByID(entityID)->Split(entry.second)->ChangeOwner(issuerID, true);
+                                stationInv->GetByID(entityID)->Split(entry.second)->ChangeOwner(issuerWalletID, true);
                             } else {
                                 // If not - we simply transfer it to issuer.
-                                sItemFactory.GetItemRef(entityID)->ChangeOwner(issuerID, true);
+                                sItemFactory.GetItemRef(entityID)->ChangeOwner(issuerWalletID, true);
                             }
                         }
                     }
@@ -565,7 +634,7 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID) {
                     // And finally, we go for traded items
                     if (!tradedItems.empty()) {
                         for (auto item : tradedItems) {
-                            sItemFactory.GetItemRef(item)->ChangeOwner(call.client->GetCharacterID(), true);
+                            sItemFactory.GetItemRef(item)->ChangeOwner(acceptorItemOwnerID, true);
                         }
                     }
 

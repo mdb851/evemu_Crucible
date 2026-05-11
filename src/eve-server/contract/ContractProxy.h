@@ -43,6 +43,7 @@ protected:
     PyResult CreateContract(PyCallArgs& call, PyInt* contractType, PyInt* isPrivate, std::optional <PyInt*> assigneeID, PyInt* expireTime, PyInt* duration, PyInt* startStationID, std::optional<PyInt*> endStationID, PyInt* price, PyInt* reward, PyInt* collateral, PyWString* title, PyWString* description);
     PyResult GetContract(PyCallArgs& call, PyInt* contractID);
     PyResult AcceptContract(PyCallArgs& call, PyInt* contractID);
+    PyResult AcceptContract(PyCallArgs& call, PyInt* contractID, std::optional<PyBool*> acceptorForCorp);
     PyResult CompleteContract(PyCallArgs& call, PyInt* contractID, PyInt* completionStatus);
     PyResult DeleteContract(PyCallArgs& call, PyInt* contractID);
     PyResult NumOutstandingContracts(PyCallArgs& call);
