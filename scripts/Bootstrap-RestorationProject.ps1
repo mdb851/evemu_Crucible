@@ -153,8 +153,13 @@ $shortSha = if (Test-Path (Join-Path $repoRoot ".git")) {
 foreach ($spec in $issueSpecs) {
     $body = IssueBody -Slice $spec.Slice -Priority $spec.Priority -Goal $spec.Goal -ShortSha $shortSha
     Write-Host "Creating issue: $($spec.Title)"
-    $url = & $gh issue create --repo $repoFull --title $spec.Title --body $body --label "restoration" --json url --jq .url
-    if (-not $url) { Write-Error "issue create failed for $($spec.Title)" }
+    # gh issue create prints the issue URL on stdout (no --json on older gh builds)
+    $createOut = & $gh issue create --repo $repoFull --title $spec.Title --body $body --label "restoration" 2>&1
+    $url = ($createOut | Where-Object { $_ -match '^https://github\.com/' } | Select-Object -First 1)
+    if (-not $url) {
+        $joined = ($createOut | Out-String).Trim()
+        Write-Error "issue create failed for $($spec.Title). gh output:`n$joined"
+    }
     Write-Host "  -> $url"
     & $gh project item-add $ProjectNumber --owner $Owner --url $url
 }
