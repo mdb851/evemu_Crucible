@@ -28,13 +28,14 @@ ENABLE_TESTING()
 # Options #
 ###########
 SET( AUTO_DOWNLOAD_DEPENDENCIES OFF
-     CACHE BOOL "When CHECKED, CMake will automatically download Boost and MySQL, otherwise, CMake will look for them in locations specified by 'Boost_DIR', 'Boost_INCLUDE_DIR', 'MYSQL_INCLUDE_DIR[...]
+     CACHE BOOL "When CHECKED, CMake will automatically download Boost and MySQL, otherwise, CMake will look for them in locations specified by 'Boost_DIR', 'Boost_INCLUDE_DIR', 'MYSQL_INCLUDE_DIRS', and 'MYSQL_LIBRARIES'" )
 SET( EVEMU_ROOT ".."
      CACHE PATH "The root directory of EVEmu workspace." )
 SET( TIXML_USE_STL ON
      CACHE BOOL "tinyxml will use native STL." )
-SET( EVEMU_BUILD_TESTS OFF
-     CACHE BOOL "Build eve-test regression suite." )
+OPTION( EVEMU_BUILD_TESTS
+        "Build eve-test and the eve-server-testlib link-smoke static library"
+        OFF )
 
 IF( CMAKE_CROSSCOMPILING )
   SET( EVEMU_TARGETS_IMPORT ""
@@ -50,6 +51,7 @@ MARK_AS_ADVANCED(
   EVEMU_TARGETS_IMPORT
   EVEMU_TARGETS_EXPORT
   TIXML_USE_STL
+  EVEMU_BUILD_TESTS
   )
 
 #################
