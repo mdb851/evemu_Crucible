@@ -129,6 +129,20 @@ Rotate to **next verification slice** (pick one — still needs live proof befor
 
 No blocker on insurance.
 
+## Strict sprint checklist (branch `restoration/contract-accept-corp`)
+
+Ordered work — **do not skip ahead** without recording evidence in this file and pushing from a real clone.
+
+1. **Contracts — live smoke (now / top priority).** Run the full **create → accept → complete** batch until PASS or a filed defect: corp issuer debit, corp acceptor collateral, corp reward credit, fail-path routing, **corp-hop blocked** (accept-for-corp then change corporation before complete/fail → blocked with notify). Until that trace is green, the courier/corp slice stays **PARTIAL**, not PASS.
+2. **Corporation market — live smoke (next).** Code path is **CODE PASS**; remaining work is **validation only** (`PlaceCharOrder` / modify / cancel corp paths). Promote to PASS only with live evidence.
+3. **One new gameplay slice (then).** Pick **one** unchecked matrix row and verify only that slice. After (1) and (2), prefer **PvP** or **mining** (per backlog framing: separate slices, one proven slice at a time). Industry and exploration remain until explicitly chosen.
+4. **Smoke tooling — required baseline.** Before each live-smoke session: **Tier A** (`pwsh .\scripts\smoke\docker-smoke.ps1` or `bash scripts/smoke/docker-smoke.sh`, or CI **Docker smoke (Tier A)**). After client steps: **Tier B** SQL under `scripts/smoke/sql/` for **contracts** and **paper-doll persistence** evidence. Tier A/B **do not replace** gameplay testing.
+5. **Contract code freeze.** Do **not** add contract implementation unless live smoke proves a **concrete** defect. Courier **`CreateContract`** reward pre-pay for **`forCorp`** issuers remains **optional later code**, not a blocker for closing this branch’s contract slice.
+6. **Paper doll.** Treat as **code-complete** for save/load and **`GetPaperDollData`** shape. **Observer refresh** is **investigation-only** (client trace first; reproduce only an observed packet/notification — not a default next implementation sprint).
+7. **Exit criterion per slice.** After each **PASS** or validated **PARTIAL** phase: update this file with evidence, **`git commit`**, **`git push`** (`restoration/contract-accept-corp` or successor branch).
+
+**Estimate context:** ~**97%** core playable / ~**94%** fully verified matrix — remaining effort is mostly **proof and protocol discovery**, not missing broad systems.
+
 ## Recent permanent patches (summary)
 - **ContractProxy.cpp / ContractUtils.cpp / migration `20260510120000`:** **CreateContract** persists **`issuerWalletKey`** for **`forCorp`**; **AcceptContract** optional **`forCorp`** + **`SearchContracts`** guards + **`PyLong`** contract type; corp accept uses **pilot wallet division hangar + HangarCanTakeN**, **`acceptorMoneyKey`** / persisted **`issuerMoneyKey`** on ISK legs; **courier** corp collateral **`corp → corpSCC`** + persisted **`acceptorWalletKey`** / **`acceptorCorpID`**; **courier `CompleteContract`** routes corp collateral + **reward** via persisted corp + division when accept-for-corp; session guard + **acceptorID** gate.
 - **docker-compose.yml:** **`RUN_WITH_GDB=${RUN_GDB:-FALSE}`** restores GDB toggle via **`RUN_GDB`**.
