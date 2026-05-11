@@ -63,6 +63,13 @@
 
 Document observed RPCs, notifications, and destiny updates during a re-customize; only then mirror the real pattern on the server.
 
+**Client trace procedure (when Crucible + capture are available):**
+
+1. **Baseline:** two clients (A = editor, B = observer), same bubble/station as needed; note ship item IDs / char IDs.
+2. **Capture:** log **service calls** (`paperDollServer.*`, `charMgr`, `config`, etc.), **marshaled notifications** (`On*`, channel + id key), and **destiny** traffic (`OnSlimItemChange`, `DoDestinyUpdate`, ball ops) from **save** through a few seconds after A exits the editor.
+3. **Order:** start with **show-info / portrait** (smallest traffic cone); only then **station**; only then **space** if you need pod/hull refresh proof.
+4. **Success criteria for a server change:** you can name the **exact** tuple/notification/destiny shape the retail client handles after save, and reproduce it from `PaperDollService` or the owning system with the same id keys — not a new guessed name.
+
 ---
 
 ## Current completion estimate
