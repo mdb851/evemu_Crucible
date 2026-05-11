@@ -38,37 +38,65 @@
 #include "corporation/LPService.h"
 
 
+// MARKER_AGENT_CPP_BUILD_VERIFICATION_UUID_12345
+static bool agent_cpp_marker_logged = false;
+void log_agent_cpp_marker() {
+    if (!agent_cpp_marker_logged) {
+        _log(SERVICE__ERROR, "===VERIFICATION_MARKER_AGENT_CPP_BUILD_TIMESTAMP_12345===");
+        agent_cpp_marker_logged = true;
+    }
+}
+
 Agent::Agent(uint32 id)
 : m_agentID(id)
 {
+    _log(SERVICE__ERROR, "AGENT_CTOR_ENTRY this=%p id=%u", this, id);
+
     m_important = false;
+    _log(SERVICE__ERROR, "AGENT_CTOR_AFTER_IMPORTANT this=%p", this);
+
     m_buttonID = 1;
+    _log(SERVICE__ERROR, "AGENT_CTOR_AFTER_BUTTON this=%p", this);
 
     m_actions.clear();
-    m_offers.clear();
+    _log(SERVICE__ERROR, "AGENT_CTOR_AFTER_ACTIONS_CLEAR this=%p", this);
 
-    _log(AGENT__TRACE, "Agent created for AgentID %u", id);
+    m_offers.clear();
+    _log(SERVICE__ERROR, "AGENT_CTOR_EXIT this=%p", this);
 }
 
 
-bool Agent::Load() {
+bool Agent::Load()
+{
+    _log(SERVICE__ERROR, "AGENT_LOAD_ENTRY this=%p", this);
+
+    _log(SERVICE__ERROR, "AGENT_LOAD_BEFORE_DB this=%p", this);
     AgentDB::LoadAgentData(m_agentID, m_agentData);
+    _log(SERVICE__ERROR, "AGENT_LOAD_AFTER_DB this=%p", this);
+
+    _log(SERVICE__ERROR, "AGENT_LOAD_BEFORE_OFFERS this=%p", this);
     sMissionDataMgr.LoadAgentOffers(m_agentID, m_offers);
+    _log(SERVICE__ERROR, "AGENT_LOAD_AFTER_OFFERS this=%p", this);
 
-    if (m_agentData.research)
+    _log(SERVICE__ERROR, "AGENT_LOAD_BEFORE_RESEARCH_CHECK this=%p", this);
+    if (m_agentData.research) {
+        _log(SERVICE__ERROR, "AGENT_LOAD_BEFORE_SKILLS this=%p", this);
         AgentDB::LoadAgentSkills(m_agentID, m_skills);
+        _log(SERVICE__ERROR, "AGENT_LOAD_AFTER_SKILLS this=%p", this);
+    }
 
-    _log(AGENT__TRACE, "Data Loaded for Agent %u - bl: %u, level: %u, locationID: %u, systemID: %u", \
-                m_agentID, m_agentData.bloodlineID, m_agentData.level, m_agentData.locationID, m_agentData.solarSystemID);
+    _log(SERVICE__ERROR, "AGENT_LOAD_EXIT_TRUE this=%p", this);
     return true;
 }
 
 void Agent::MakeOffer(uint32 charID, MissionOffer& offer)
 {
+    _log(SERVICE__ERROR, "MISSION_1_MAKEOFFER_ENTRY charID=%u agentID=%u", charID, m_agentID);
     // this will be based on agent type eventually
     uint8 misionType = Mission::Type::Courier;
 
     sMissionDataMgr.CreateMissionOffer(misionType, m_agentData.level, m_agentData.raceID, m_important, offer);
+    _log(SERVICE__ERROR, "MISSION_2_MAKEOFFER_AFTER_CREATE typeID=%u briefingID=%u missionID=%u", offer.typeID, offer.briefingID, offer.missionID);
 
     /*  static mission data from db
     offer.name               = cData.name;
@@ -144,10 +172,12 @@ void Agent::MakeOffer(uint32 charID, MissionOffer& offer)
     }
 
     MissionDB::CreateOfferID(offer);
+    _log(SERVICE__ERROR, "MISSION_3_MAKEOFFER_AFTER_DB offerID=%u stateID=%u", offer.offerID, offer.stateID);
 
     // keep local copy and also add to mission data mgr
     m_offers.emplace(charID, offer);
     sMissionDataMgr.AddMissionOffer(charID, offer);
+    _log(SERVICE__ERROR, "MISSION_4_MAKEOFFER_EXIT charID=%u agentID=%u offerID=%u", charID, m_agentID, offer.offerID);
 }
 
 bool Agent::HasMission(uint32 charID)
@@ -198,13 +228,16 @@ void Agent::GetOffer(uint32 charID, MissionOffer& offer)
  */
 void Agent::UpdateOffer(uint32 charID, MissionOffer& offer)
 {
+    _log(SERVICE__ERROR, "MISSION_5_UPDATEOFFER_ENTRY charID=%u offerID=%u stateID=%u", charID, offer.offerID, offer.stateID);
     std::map<uint32, MissionOffer>::iterator itr = m_offers.find(charID);
     if (itr != m_offers.end()) {
         itr->second = offer;
         MissionDB::UpdateMissionOffer(itr->second);
         sMissionDataMgr.UpdateMissionData(charID, itr->second);
+        _log(SERVICE__ERROR, "MISSION_6_UPDATEOFFER_EXIT_SUCCESS charID=%u offerID=%u", charID, offer.offerID);
     } else {
         _log(AGENT__WARNING, "Agent::UpdateOffer() - offer not found for character %u", charID);
+        _log(SERVICE__ERROR, "MISSION_6_UPDATEOFFER_EXIT_FAIL charID=%u offerID=%u stateID=%u", charID, offer.offerID, offer.stateID);
     }
 }
 
@@ -847,3 +880,8 @@ bool Agent::CanUseAgent(Client* pClient)
  * RP/Day = ((Agent Level + Your Skill)^2 * (1 + (20 + 5 * Negotiation Skill + Agent Effective Standing) / 100)) * Multiplier
  * ((Agent Skill + Your Skill)^2 * (1 + Effective Quality / 100)) * Area Bonus
  */
+
+
+
+
+

@@ -107,8 +107,16 @@ public:
     }
 
     PyResult MachoBindObject(PyCallArgs& args, PyRep* bindParameters, std::optional<PyTuple*> call) {
+        _log(SERVICE__ERROR, "BIND_LOG_1_ENTRY: svc=%p, args.client=%p, bindParameters=%p, call.has_value=%d", 
+             this, args.client, bindParameters, call.has_value() ? 1 : 0);
+        
         // register the new instance in the service manager
+        _log(SERVICE__ERROR, "BIND_LOG_2_PRE_BINDOBJECT: svc=%p, args.client=%p, bindParameters=%p",
+             this, args.client, bindParameters);
+        
         BoundDispatcher* bound = this->BindObject(args.client, bindParameters);
+        
+        _log(SERVICE__ERROR, "BIND_LOG_3_POST_BINDOBJECT: bound=%p", bound);
 
         // binding failed for whatever reason, just return none and get on with our lifes
         if (bound == nullptr) {

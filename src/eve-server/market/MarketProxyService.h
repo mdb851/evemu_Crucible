@@ -54,7 +54,7 @@ protected:
     PyResult GetOrders(PyCallArgs& call, PyInt* typeID);
     PyResult PlaceCharOrder(PyCallArgs& call, PyInt* stationID, PyInt* typeID, PyFloat* price, PyInt* quantity, PyInt* bid, PyInt* orderRange, std::optional <PyInt*> itemID, PyInt* minVolume, PyInt* duration, PyBool* useCorp, std::optional<PyRep*> located);
     PyResult PlaceCharOrder(PyCallArgs &call, PyInt* stationID, PyInt* typeID, PyFloat* price, PyInt* quantity, PyInt* bid, PyInt* orderRange, std::optional <PyInt*> itemID, PyInt* minVolume, PyInt* duration, PyInt* useCorp, std::optional<PyRep*> located);
-    PyResult ModifyCharOrder(PyCallArgs& call, PyInt* orderID, PyFloat* newPrice, PyInt* bid, PyInt* stationID, PyInt* solarSystemID, PyFloat* price, PyInt* range, PyInt* volRemaining, PyLong* issueDate);
+    PyResult ModifyCharOrder(PyCallArgs& call, PyInt* orderID, PyFloat* newPrice, PyBool* bid, PyInt* stationID, PyInt* solarSystemID, PyFloat* price, PyInt* range, PyInt* volRemaining, PyLong* issueDate);
     PyResult CancelCharOrder(PyCallArgs& call, PyInt* orderID, PyInt* regionID);
 
 private:

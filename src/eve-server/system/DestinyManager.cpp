@@ -362,8 +362,20 @@ void DestinyManager::SetSpeedFraction(float fraction/*1.0*/, bool startMovement/
     }
 
     if (m_ballMode == Destiny::Ball::Mode::WARP) {
+        if (is_log_enabled(DESTINY__WARP_TRACE)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::SetSpeedFraction():DIAGNOSTIC_MODE_TRANSITION_PRE - %s(%u): modeBefore=%u (WARP=3) fraction=%.4f asf=%.6f (POTENTIALLY_OUT_OF_BOUNDS)", \
+                    mySE->GetName(), mySE->GetID(), (uint8)m_ballMode, fraction, m_activeSpeedFraction);
+            _log(DESTINY__WARP_TRACE, "Destiny::SetSpeedFraction():DIAGNOSTIC_MODE_TRANSITION_PRE_STATE - %s(%u): shipHeading=(%.6f,%.6f,%.6f) velocity=(%.4f,%.4f,%.4f) usf=%.4f asf=%.4f", \
+                    mySE->GetName(), mySE->GetID(), m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, \
+                    m_velocity.x, m_velocity.y, m_velocity.z, m_userSpeedFraction, m_activeSpeedFraction);
+        }
         // set state to Ball::Mode::GOTO after setting warp decel variables, so warp completion will decel properly
         m_ballMode = Destiny::Ball::Mode::GOTO;
+        if (is_log_enabled(DESTINY__WARP_TRACE)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::SetSpeedFraction():DIAGNOSTIC_MODE_TRANSITION_POST - %s(%u): modeAfter=%u (GOTO=0) accel=%s decel=%s m_prevSpeedFraction=%.4f m_shipAccelTime=%.2f", \
+                    mySE->GetName(), mySE->GetID(), (uint8)m_ballMode, m_accel ? "true" : "false", m_decel ? "true" : "false", \
+                    m_prevSpeedFraction, m_shipAccelTime);
+        }
         return;
     }
 
@@ -384,8 +396,12 @@ void DestinyManager::SetSpeedFraction(float fraction/*1.0*/, bool startMovement/
         m_hasSentShipUpdates = true;
     }
 
-    if (!updates.empty())
+    if (!updates.empty()) {
+        if (is_log_enabled(DESTINY__WARP_TRACE) and (m_ballMode == Destiny::Ball::Mode::GOTO)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::SetSpeedFraction():OUTBOUND_STATE_PRE_SEND - %s(%u): m_ballMode=%u (GOTO=0), m_shipHeading=(%.6f,%.6f,%.6f), m_targetHeading=(%.6f,%.6f,%.6f), m_velocity=(%.4f,%.4f,%.4f), fraction=%.4f, m_activeSpeedFraction=%.6f", mySE->GetName(), mySE->GetID(), (uint8)m_ballMode, m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_targetHeading.x, m_targetHeading.y, m_targetHeading.z, m_velocity.x, m_velocity.y, m_velocity.z, fraction, m_activeSpeedFraction);
+        }
         SendDestinyUpdate(updates);
+    }
 }
 
 void DestinyManager::UpdateVelocity(bool isMoving) {
@@ -393,6 +409,7 @@ void DestinyManager::UpdateVelocity(bool isMoving) {
     if ((m_ballMode == Destiny::Ball::Mode::WARP) and (m_warpState != nullptr)) {
         /*  Warp() finished, and ship dropped out of warp at m_speedToLeaveWarp,
          * set variables for decel from this speed.
+         * CRITICAL FIX: Replace stale speed-fraction state with derived warp-exit fractions.
          */
         logType = 1;
         m_accel = false;
@@ -400,9 +417,73 @@ void DestinyManager::UpdateVelocity(bool isMoving) {
         m_targBubble = nullptr;
         m_maxSpeed = m_speedToLeaveWarp;
         m_prevSpeed = m_speedToLeaveWarp;
+
+        if (is_log_enabled(DESTINY__WARP_TRACE)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::UpdateVelocity():WARP_EXIT_HEADING_PRE - %s(%u): m_shipHeading=(%.6f,%.6f,%.6f) m_targetHeading=(%.6f,%.6f,%.6f) warp_vector=(%.6f,%.6f,%.6f)", \
+                    mySE->GetName(), mySE->GetID(), \
+                    m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, \
+                    m_targetHeading.x, m_targetHeading.y, m_targetHeading.z, \
+                    (m_warpState != nullptr ? m_warpState->warp_vector.x : 0), \
+                    (m_warpState != nullptr ? m_warpState->warp_vector.y : 0), \
+                    (m_warpState != nullptr ? m_warpState->warp_vector.z : 0));
+        }
+
         m_velocity = m_shipHeading * m_maxSpeed;
-        m_prevSpeedFraction = m_maxSpeed / m_maxShipSpeed;
-        m_shipAccelTime = m_shipAgility * -log(1-(m_prevSpeedFraction));
+
+        if (is_log_enabled(DESTINY__WARP_TRACE)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::UpdateVelocity():WARP_EXIT_HEADING_POST - %s(%u): m_velocity=(%.4f,%.4f,%.4f) m_shipHeading=(%.6f,%.6f,%.6f)", \
+                    mySE->GetName(), mySE->GetID(), \
+                    m_velocity.x, m_velocity.y, m_velocity.z, \
+                    m_shipHeading.x, m_shipHeading.y, m_shipHeading.z);
+        }
+
+        float oldPrevSpeedFraction = m_prevSpeedFraction;
+        float oldActiveSpeedFraction = m_activeSpeedFraction;
+        float oldUserSpeedFraction = m_userSpeedFraction;
+
+        if (m_maxShipSpeed <= 0.001f) {
+            if (is_log_enabled(DESTINY__WARP_TRACE)) {
+                _log(DESTINY__WARP_TRACE,
+                        "Destiny::UpdateVelocity():WARP_EXIT_FRACTION_FIX_SKIPPED - %s(%u): unsafe m_maxShipSpeed=%.6f oldPSF=%.6f oldASF=%.6f oldUSF=%.6f speedToLeave=%.2f",
+                        mySE->GetName(), mySE->GetID(),
+                        m_maxShipSpeed,
+                        oldPrevSpeedFraction, oldActiveSpeedFraction, oldUserSpeedFraction,
+                        m_speedToLeaveWarp);
+            }
+        } else {
+            float derivedWarpExitFraction = m_speedToLeaveWarp / m_maxShipSpeed;
+
+            if ((derivedWarpExitFraction <= 0.0f) || (derivedWarpExitFraction >= 1.0f)) {
+                if (is_log_enabled(DESTINY__WARP_TRACE)) {
+                    _log(DESTINY__WARP_TRACE,
+                            "Destiny::UpdateVelocity():WARP_EXIT_FRACTION_FIX_SKIPPED - %s(%u): invalid derivedFraction=%.6f oldPSF=%.6f oldASF=%.6f oldUSF=%.6f speedToLeave=%.2f maxShipSpeed=%.2f",
+                            mySE->GetName(), mySE->GetID(),
+                            derivedWarpExitFraction,
+                            oldPrevSpeedFraction, oldActiveSpeedFraction, oldUserSpeedFraction,
+                            m_speedToLeaveWarp, m_maxShipSpeed);
+                }
+            } else {
+                m_prevSpeedFraction = derivedWarpExitFraction;
+                m_activeSpeedFraction = derivedWarpExitFraction;
+                // m_userSpeedFraction intentionally unchanged; SetSpeedFraction(0.0f) owns the target request.
+
+                m_shipAccelTime = m_shipAgility * -log(1-(m_prevSpeedFraction));
+
+                if (is_log_enabled(DESTINY__WARP_TRACE)) {
+                    _log(DESTINY__WARP_TRACE,
+                            "Destiny::UpdateVelocity():WARP_EXIT_FRACTION_FIX - %s(%u): oldPSF=%.6f oldASF=%.6f oldUSF=%.6f derivedFraction=%.6f newPSF=%.6f newASF=%.6f newUSF=%.6f speedToLeave=%.2f maxShipSpeed=%.2f shipAccelTime=%.2f",
+                            mySE->GetName(), mySE->GetID(),
+                            oldPrevSpeedFraction, oldActiveSpeedFraction, oldUserSpeedFraction,
+                            derivedWarpExitFraction,
+                            m_prevSpeedFraction, m_activeSpeedFraction, m_userSpeedFraction,
+                            m_speedToLeaveWarp, m_maxShipSpeed, m_shipAccelTime);
+                }
+            }
+        }
+
+        if (is_log_enabled(DESTINY__WARP_TRACE)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::UpdateVelocity():WARP_EXIT_COMPLETE - %s(%u): heading=(%.6f,%.6f,%.6f) velocity=(%.4f,%.4f,%.4f)", mySE->GetName(), mySE->GetID(), m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_velocity.x, m_velocity.y, m_velocity.z);
+        }
     } else if (m_userSpeedFraction) {
         // commanded speed fraction > 0 and ...
         float delta(1.0f);
@@ -547,6 +628,10 @@ void DestinyManager::Stop() {
 }
 
 void DestinyManager::Halt() {
+    if (is_log_enabled(DESTINY__WARP_TRACE)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::Halt():ENTRY - %s(%u): m_ballMode=%u, m_shipHeading=(%.6f,%.6f,%.6f), m_targetHeading=(%.6f,%.6f,%.6f), m_velocity=(%.4f,%.4f,%.4f)", mySE->GetName(), mySE->GetID(), (uint8)m_ballMode, m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_targetHeading.x, m_targetHeading.y, m_targetHeading.z, m_velocity.x, m_velocity.y, m_velocity.z);
+    }
+
     SafeDelete(m_warpState);
 
     //  reset ALL movement variables and states.  calling this will set object to a COMPLETE and IMMEDIATE stop.
@@ -574,6 +659,10 @@ void DestinyManager::Halt() {
     m_targetEntity.second = nullptr;
 
     ClearTurn();
+
+    if (is_log_enabled(DESTINY__WARP_TRACE)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::Halt():EXIT - %s(%u): m_ballMode=%u (STOP=2), m_shipHeading=(%.6f,%.6f,%.6f), m_targetHeading=(%.6f,%.6f,%.6f), m_velocity=(%.4f,%.4f,%.4f)", mySE->GetName(), mySE->GetID(), (uint8)m_ballMode, m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_targetHeading.x, m_targetHeading.y, m_targetHeading.z, m_velocity.x, m_velocity.y, m_velocity.z);
+    }
 
     if (is_log_enabled(DESTINY__MOVE_TRACE))
         _log(DESTINY__MOVE_TRACE, "Destiny::Halt() - %s(%u): m_shipHeading: %.3f,%.3f,%.3f", \
@@ -1447,6 +1536,22 @@ void DestinyManager::ClearOrbit() {
 
 void DestinyManager::InitWarp() {
     //init warp:
+    // Clamp speed fractions to valid bounds before entering warp
+    // This prevents stale undock overspeed state from corrupting warp exit
+    if (m_activeSpeedFraction > 1.0f) {
+        if (is_log_enabled(DESTINY__WARP_TRACE)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::InitWarp():CLAMP_ASF - %s(%u): Clamping m_activeSpeedFraction from %.6f to 1.0f", \
+                    mySE->GetName(), mySE->GetID(), m_activeSpeedFraction);
+        }
+        m_activeSpeedFraction = 1.0f;
+    }
+    if (m_userSpeedFraction > 1.0f) {
+        if (is_log_enabled(DESTINY__WARP_TRACE)) {
+            _log(DESTINY__WARP_TRACE, "Destiny::InitWarp():CLAMP_USF - %s(%u): Clamping m_userSpeedFraction from %.6f to 1.0f", \
+                    mySE->GetName(), mySE->GetID(), m_userSpeedFraction);
+        }
+        m_userSpeedFraction = 1.0f;
+    }
 
     // warp time and distance math
     //   allan 1Nov14 - 14Nov14
@@ -1788,7 +1893,13 @@ void DestinyManager::WarpStop(double currentShipSpeed) {
         _log(AUTOPILOT__MESSAGE, "Destiny::WarpStop(): %s(%u) - Warp complete.", mySE->GetName(), mySE->GetID());
         mySE->GetPilot()->SetLoginWarpComplete();
     }
+    if (is_log_enabled(DESTINY__WARP_TRACE)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::WarpStop():HEADING_PRE_ADJUSTMENT - %s(%u): m_shipHeading=(%.6f,%.6f,%.6f) m_targetPoint_before=(%.2f,%.2f,%.2f)", mySE->GetName(), mySE->GetID(), m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_targetPoint.x, m_targetPoint.y, m_targetPoint.z);
+    }
     m_targetPoint += (m_warpState->warp_vector *10000);
+    if (is_log_enabled(DESTINY__WARP_TRACE)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::WarpStop():HEADING_POST_ADJUSTMENT - %s(%u): m_shipHeading=(%.6f,%.6f,%.6f) m_targetPoint_after=(%.2f,%.2f,%.2f)", mySE->GetName(), mySE->GetID(), m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_targetPoint.x, m_targetPoint.y, m_targetPoint.z);
+    }
     // SetSpeedFraction() checks for m_state = Warp and warpstate != null to set decel variables correctly with warp decel.
     //   have to call this BEFORE deleting or reseting m_state or WarpState.
     SetSpeedFraction(0.0f);
@@ -1798,6 +1909,26 @@ void DestinyManager::WarpStop(double currentShipSpeed) {
     if ((mySE->IsNPCSE()) and (mySE->GetNPCSE()->GetAIMgr() != nullptr)) {
         mySE->GetNPCSE()->GetAIMgr()->WarpOutComplete();
     }
+
+    // Send corrected post-warp decel state to client before Halt() zeros everything
+    // This ensures the client receives the correct heading/velocity/mode for the decel phase
+    if (is_log_enabled(DESTINY__WARP_TRACE)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::WarpStop():SENDING_CORRECTED_STATE - %s(%u): m_ballMode=%u (GOTO=0), m_shipHeading=(%.6f,%.6f,%.6f), m_velocity=(%.4f,%.4f,%.4f)", mySE->GetName(), mySE->GetID(), (uint8)m_ballMode, m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_velocity.x, m_velocity.y, m_velocity.z);
+    }
+    std::vector<PyTuple*> updates;
+    SetBallVelocity bv;
+        bv.entityID = mySE->GetID();
+        bv.x = m_velocity.x;
+        bv.y = m_velocity.y;
+        bv.z = m_velocity.z;
+    updates.push_back(bv.Encode());
+    CmdGotoDirection du;
+        du.entityID = mySE->GetID();
+        du.x = m_shipHeading.x;
+        du.y = m_shipHeading.y;
+        du.z = m_shipHeading.z;
+    updates.push_back(du.Encode());
+    SendDestinyUpdate(updates);
 
     // TODO: when exiting warp, and attempting to warp again shortly after, the
     // ball mode reaches a weird state where it goes from Warp to a regular
@@ -2348,6 +2479,10 @@ void DestinyManager::SetUndockSpeed() {
     // may need to tweak these for larger ships...
     m_activeSpeedFraction = 1.1f;
     m_timeFraction = 1.1f;
+    if (is_log_enabled(DESTINY__WARP_TRACE)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::SetUndockSpeed():DIAGNOSTIC_UNDOCK_STATE - %s(%u): Setting asf=1.1f, usf=1.1f during undock (potential stale state source)", \
+                mySE->GetName(), mySE->GetID());
+    }
 
     if (m_ballMode == Destiny::Ball::Mode::MISSILE)
         return;
@@ -2512,6 +2647,10 @@ void DestinyManager::SpeedBoost(bool deactivate/*false*/)
     m_maxSpeed = m_maxShipSpeed * m_userSpeedFraction;
     // set asf as fraction of current speed over new max speed.
     m_activeSpeedFraction = m_prevSpeed / m_maxShipSpeed;     // this may give >1.0
+    if (is_log_enabled(DESTINY__WARP_TRACE)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::SpeedBoost():DIAGNOSTIC_ASF_CALC - %s(%u): m_activeSpeedFraction calculated as %.6f (prevSpeed=%.2f / maxShipSpeed=%.2f)", \
+                mySE->GetName(), mySE->GetID(), m_activeSpeedFraction, m_prevSpeed, m_maxShipSpeed);
+    }
 
     // send out updated ship data
     std::vector<PyTuple*> updates;
@@ -3289,6 +3428,9 @@ void DestinyManager::SendDestinyUpdate(std::vector<PyTuple*> &updates, bool self
 }
 
 void DestinyManager::SendDestinyUpdate( std::vector<PyTuple*>& updates, std::vector<PyTuple*>& events, bool self_only/*false*/) const {
+    if (is_log_enabled(DESTINY__WARP_TRACE) and (m_ballMode == Destiny::Ball::Mode::STOP or m_ballMode == Destiny::Ball::Mode::GOTO)) {
+        _log(DESTINY__WARP_TRACE, "Destiny::SendDestinyUpdate():POST_WARP_SEND - %s(%u): m_ballMode=%u, sending %lu updates, heading=(%.6f,%.6f,%.6f), velocity=(%.4f,%.4f,%.4f)", mySE->GetName(), mySE->GetID(), (uint8)m_ballMode, updates.size(), m_shipHeading.x, m_shipHeading.y, m_shipHeading.z, m_velocity.x, m_velocity.y, m_velocity.z);
+    }
     // this check shouldnt be needed...
     if (!mySE->SystemMgr()->IsLoaded()) {
         return;
@@ -3388,3 +3530,10 @@ void DestinyManager::SendDestinyUpdate( std::vector<PyTuple*>& updates, std::vec
         //mySE->SysBubble()->BubblecastDestiny( updates, events, "destiny" );
     }
 }
+
+
+
+
+
+
+

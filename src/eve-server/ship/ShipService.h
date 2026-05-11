@@ -29,6 +29,7 @@
 
 #include "services/BoundService.h"
 
+class PyRep;
 class ShipBound;
 
 class ShipService : public BindableService <ShipService, ShipBound>
@@ -72,7 +73,7 @@ protected:
     PyResult ScoopToSMA(PyCallArgs& call, PyInt* objectID);
     PyResult BoardStoredShip(PyCallArgs& call, PyInt* structureID, PyInt* shipID);
     PyResult StoreVessel(PyCallArgs& call, PyInt* destID);
-    PyResult SelfDestruct(PyCallArgs& call, PyInt* shipID);
+    PyResult SelfDestruct(PyCallArgs& call, std::optional<PyRep*> arg0, std::optional<PyRep*> arg1, std::optional<PyRep*> arg2, std::optional<PyRep*> arg3);
 
 private:
     ShipItem* pShip;

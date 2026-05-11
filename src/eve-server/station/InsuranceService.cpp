@@ -32,6 +32,8 @@
 #include "account/AccountService.h"
 #include "chat/LSCService.h"
 #include "station/InsuranceService.h"
+#include <algorithm>
+#include <cmath>
 #include "system/SystemEntity.h"
 #include "system/SystemManager.h"
 #include "services/ServiceManager.h"
@@ -125,28 +127,48 @@ PyResult InsuranceBound::InsureShip(PyCallArgs& call, PyInt* shipID, PyFloat* am
      *   Basic      0.5       0.05
      *   None       0.1       0.00
      */
-    // calculate the fraction value
-    double paymentFraction = (amount->value() / (shipRef->type().basePrice()));
+    // Premium tiers are expressed as (premiumPaid / shipTypeBasePrice). The bound
+    // GetInsurancePrice() returns the hull basePrice; some Crucible builds submit
+    // that same hull value as InsureShip's amount, yielding ratio ~1.0 instead of
+    // the nominal platinum ratio ~0.3 — treat hull-sized payments as platinum coverage.
+    const double basePrice = shipRef->type().basePrice();
+    const double amountISK = amount->value();
+    const double paymentFraction = amountISK / basePrice;
+
     if (paymentFraction < 0.05) {
             // catchall for fuckedup prices.
         call.client->SendErrorMsg("Your payment of %.2f is below the minimum payment of %.2f required for coverage.", \
-                    amount->value(), (shipRef->type().basePrice() * 0.05f));
+                    amountISK, (basePrice * 0.05f));
         return PyStatic.NewNone();
     }
 
     float fraction(0.1f);  // with no insurance, SCC pays 40% on live.  we pay 10%
-    if (paymentFraction == 0.05) {
-        fraction = 0.5f;
-    } else if (paymentFraction == 0.1) {
-        fraction = 0.6f;
-    } else if (paymentFraction == 0.15) {
-        fraction = 0.7f;
-    } else if (paymentFraction == 0.2) {
-        fraction = 0.8f;
-    } else if (paymentFraction == 0.25) {
-        fraction = 0.9f;
-    } else if (paymentFraction == 0.3) {
+
+    static constexpr double kPremiumRates[] = { 0.05, 0.1, 0.15, 0.2, 0.25, 0.3 };
+    static constexpr float kCoverageFrac[] = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
+    static constexpr size_t kTierCount = sizeof(kPremiumRates) / sizeof(kPremiumRates[0]);
+
+    const double hullTolISK = std::max(5.0, basePrice * 1e-4);
+    const bool amountLooksLikeHullQuote =
+        basePrice > 0.0
+        && (std::fabs(amountISK - basePrice) <= hullTolISK
+            || std::fabs(paymentFraction - 1.0) <= 1e-6);
+
+    if (amountLooksLikeHullQuote) {
         fraction = 1.0f;
+    } else {
+        int bestIdx = -1;
+        double bestErr = 1.0;
+        for (size_t i = 0; i < kTierCount; ++i) {
+            const double err = std::fabs(paymentFraction - kPremiumRates[i]);
+            if (err < bestErr) {
+                bestErr = err;
+                bestIdx = (int)i;
+            }
+        }
+        constexpr double kTierEpsilon = 1e-4;
+        if (bestIdx >= 0 && bestErr < kTierEpsilon)
+            fraction = kCoverageFrac[(size_t)bestIdx];
     }
 
     if (fraction < 0.05f) {
@@ -166,7 +188,7 @@ PyResult InsuranceBound::InsureShip(PyCallArgs& call, PyInt* shipID, PyFloat* am
     }
 
     uint8 numWeeks(12);
-    double payout(shipRef->type().basePrice());
+    double payout(basePrice);
     payout *= fraction;
     if (m_db->InsertInsuranceByShipID(shipID->value(), shipRef->name(), call.client->GetCharacterID(), fraction, payout, isCorporation.has_value() && isCorporation.value()->value(), numWeeks)) {
         //  it successfully added, now, have the player pay for the insurance
@@ -177,7 +199,7 @@ PyResult InsuranceBound::InsureShip(PyCallArgs& call, PyInt* shipID, PyFloat* am
         AccountService::TransferFunds(
             call.client->GetCharacterID(),
             corpSCC,
-            amount->value(),
+            amountISK,
             reason,
             Journal::EntryType::Insurance,
             -shipRef->itemID()

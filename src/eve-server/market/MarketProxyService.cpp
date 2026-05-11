@@ -217,6 +217,7 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
      */
 
     if (bid->value() and (itemID.has_value () == false || itemID.value()->value() == 0)) {  // buy
+        _log(SERVICE__ERROR, "MARKET_BUY_1_ENTRY charID=%u typeID=%u qty=%u price=%.2f stationID=%u bid=%u duration=%u", call.client->GetCharacterID(), typeID->value(), quantity->value(), price->value(), stationID->value(), bid->value(), duration->value());
         // check for corp usage and get standings with station owners
         float fStanding(0), cStanding(0);
         if (useCorp->value()) {
@@ -237,6 +238,7 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
 
         // is this standing order or immediate?
         if (duration->value() == 0) {
+            _log(SERVICE__ERROR, "MARKET_BUY_2_IMMEDIATE charID=%u typeID=%u", call.client->GetCharacterID(), typeID->value());
             // immediate. look for open sell order that matches all reqs (price, qty, distance, etc)
             // check distance, set order range and make station list.
             uint32 orderID(MarketDB::FindSellOrder(
@@ -245,9 +247,11 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
                 quantity->value(),
                 price->value()
             ));
+            _log(SERVICE__ERROR, "MARKET_BUY_3_ORDER_LOOKUP orderID=%u typeID=%u", orderID, typeID->value());
 
             if (orderID) {
                 // found one.
+                _log(SERVICE__ERROR, "MARKET_BUY_4_FOUND_ORDER orderID=%u price=%.2f qty=%u", orderID, price->value(), quantity->value());
                 _log(MARKET__TRACE,
                     "PlaceCharOrder - Found sell order #%u in %s for %s. (type %i, price %.2f, qty %i, range %i)",
                     orderID,
@@ -259,6 +263,7 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
                     orderRange->value()
                 );
 
+                _log(SERVICE__ERROR, "MARKET_BUY_5_BEFORE_EXECUTE orderID=%u charID=%u", orderID, call.client->GetCharacterID());
                 sMktMgr.ExecuteSellOrder(
                     call.client,
                     orderID,
@@ -268,9 +273,11 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
                     typeID->value(),
                     useCorp->value()
                 );
+                _log(SERVICE__ERROR, "MARKET_BUY_6_AFTER_EXECUTE orderID=%u", orderID);
 
                 return nullptr;
             }
+            _log(SERVICE__ERROR, "MARKET_BUY_7_NO_ORDER_FOUND typeID=%u price=%.2f", typeID->value(), price->value());
 
             _log(MARKET__TRACE,
                 "PlaceCharOrder - Failed to satisfy buy order for %i of type %i at %.2f ISK.",
@@ -618,7 +625,8 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
             iRef->Delete();
         } else {
             //update the item.
-            if (!iRef->AlterQuantity(-quantity->value(), true)) {
+            bool result = iRef->AlterQuantity(-quantity->value(), true);
+            if (!result) {
                 _log(MARKET__ERROR, "PlaceCharOrder - Failed to consume %i units from %s", quantity->value(), iRef->name());
                 return nullptr;
             }
@@ -637,7 +645,7 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
     return PlaceCharOrder(call, stationID, typeID, price, quantity, bid, orderRange, itemID, minVolume, duration, new PyBool(useCorp->value()), located);
 }
 
-PyResult MarketProxyService::ModifyCharOrder(PyCallArgs &call, PyInt* orderID, PyFloat* newPrice, PyInt* bid, PyInt* stationID, PyInt* solarSystemID, PyFloat* price, PyInt* range, PyInt* volRemaining, PyLong* issueDate) {
+PyResult MarketProxyService::ModifyCharOrder(PyCallArgs &call, PyInt* orderID, PyFloat* newPrice, PyBool* bid, PyInt* stationID, PyInt* solarSystemID, PyFloat* price, PyInt* range, PyInt* volRemaining, PyLong* issueDate) {
     // client coded to throw error if price > 9223372036854.0
     // we need to pull data from db for typeID and isCorp...
     Market::OrderInfo oInfo = Market::OrderInfo();

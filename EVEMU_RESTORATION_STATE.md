@@ -53,7 +53,6 @@ Rotate to **next verification slice** (pick one — still needs live proof befor
 No blocker on insurance.
 
 ## Recent permanent patches (summary)
-- **ContractProxy.cpp:** **CreateContract** traded-item owner matches **`forCorp`** (character vs corporation); courier **reward escrow** from corp cash via **`HandleCorpTransaction`** when applicable; **`GetItemsInStation`** lists personal hangar by **character owner** or **all corp hangar divisions** when **`forCorp`** is set; **`CompleteContract`** uses **`issuerCorpID`** / **`issuer forCorp`** for delivered-item ownership and failed-contract collateral transfer.
 - **ContractProxy.cpp:** **AcceptContract** optional **`forCorp`** (corp hangar divisions); **`issuerCorpID`** / issuer corp wallet for WTB/WTS ISK; requested-stack lookup filters **`contributorOwnerID`** (char vs corp).
 - **InsuranceService.cpp:** hull-sized premium → platinum coverage; nearest-tier matching for nominal ratios.
 - **ShipDB / Ship.cpp / Damage.cpp:** insurance settlement from DB `ownerID`; abandoned-hull destruction path pays out.
@@ -64,7 +63,7 @@ No blocker on insurance.
 - Bantam typeID=582; Caldari Frigate skill gate resolved for boarding.
 
 ## Known code gaps (not PASS until tested)
-- **ContractProxy.cpp:** corp-focused **create / accept / complete / station item list** paths are implemented but **unchecked** live (courier collateral/reward on **complete** still credited to the accepting **character** wallet — corp-accepter courier not modeled in DB).
+- **ContractProxy.cpp:** item-exchange **acceptance** now honors optional tuple **`forCorp`** (corp hangar divisions + corp-owned stacks), **`issuerCorpID`**, and corp wallets for price/reward when issuer or acceptor is acting for corp; **still UNCHECKED** live for corp issuer ↔ corp acceptor paths.
 - Large surface areas above remain **verification-dependent** — no substitute for targeted live tests.
 
 ## Hard project rules

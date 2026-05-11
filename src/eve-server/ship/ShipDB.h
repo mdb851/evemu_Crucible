@@ -44,7 +44,8 @@ public:
     bool InsertInsuranceByShipID(uint32 shipID, std::string name, uint32 ownerID, float level, double payOut, bool isCorpItem = false, uint8 numWeeks = 12);
 	static void DeleteInsuranceByShipID(uint32 shipID);
 
-    float GetShipInsurancePayout(uint32 shipID);
+    /** If a row exists for shipID, sets contract owner and payout from shipInsurance and returns true. */
+    bool TryGetInsuranceSettlement(uint32 shipID, uint32& beneficiaryCharID, double& payoutISK);
 
     bool IsShipInsured(uint32 shipID);
 

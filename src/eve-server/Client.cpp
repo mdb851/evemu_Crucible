@@ -1789,19 +1789,25 @@ void Client::RemoveMissionItem(uint16 typeID, uint32 qty)
 
 bool Client::ContainsTypeQty(uint16 typeID, uint32 qty) const
 {
+    _log(SERVICE__ERROR, "MISSION_CONTAINS_1_ENTRY charID=%u locationID=%u typeID=%u qtyNeeded=%u", GetCharacterID(), m_locationID, typeID, qty);
     uint16 count = 0;
     InventoryItemRef iRef(nullptr);
     // this is for missions....we will have to determine if we have the TOTAL qty desired, in both cargo and hangar
     if (sDataMgr.IsStation(m_locationID)) {
         iRef = sItemFactory.GetStationRef(m_locationID)->GetMyInventory()->GetByTypeFlag(typeID, flagHangar);
+        _log(SERVICE__ERROR, "MISSION_CONTAINS_2_STATION isStation=1 locationID=%u itemFound=%u qty=%u", m_locationID, (iRef.get() != nullptr ? 1 : 0), (iRef.get() != nullptr ? iRef->quantity() : 0));
         if (iRef.get() != nullptr)
             count = iRef->quantity();
+    } else {
+        _log(SERVICE__ERROR, "MISSION_CONTAINS_2_STATION isStation=0 locationID=%u", m_locationID);
     }
 
     iRef = GetShip()->GetMyInventory()->GetByTypeFlag(typeID, flagCargoHold);
+    _log(SERVICE__ERROR, "MISSION_CONTAINS_3_CARGO shipID=%u itemFound=%u qty=%u", GetShipID(), (iRef.get() != nullptr ? 1 : 0), (iRef.get() != nullptr ? iRef->quantity() : 0));
     if (iRef.get() != nullptr)
         count += iRef->quantity();
 
+    _log(SERVICE__ERROR, "MISSION_CONTAINS_4_TOTAL totalQty=%u qtyNeeded=%u returning=%u", count, qty, (count >= qty ? 1 : 0));
     if (count >= qty)
         return true;
     return false;
@@ -1809,35 +1815,50 @@ bool Client::ContainsTypeQty(uint16 typeID, uint32 qty) const
 
 bool Client::IsMissionComplete(MissionOffer& data)
 {
+    _log(SERVICE__ERROR, "MISSION_COMPLETE_1_ENTRY charID=%u missionTypeID=%u locationID=%u destinationID=%u courierTypeID=%u courierAmount=%u", GetCharacterID(), data.typeID, m_locationID, data.destinationID, data.courierTypeID, data.courierAmount);
     // dont know all the stipulations of "completion" yet, but skeleton code for starters...
     switch (data.typeID) {
         case Mission::Type::Tutorial: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_TUTORIAL");
         } break;
         case Mission::Type::Encounter: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_ENCOUNTER");
         } break;
         case Mission::Type::Courier: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_COURIER");
             if (m_locationID == data.destinationID)
-                if (ContainsTypeQty(data.courierTypeID, data.courierAmount))
+                if (ContainsTypeQty(data.courierTypeID, data.courierAmount)) {
+                    _log(SERVICE__ERROR, "MISSION_COMPLETE_3_RETURN_TRUE");
                     return true;
+                }
         } break;
         case Mission::Type::Trade: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_TRADE");
         } break;
         case Mission::Type::Mining: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_MINING");
         } break;
         case Mission::Type::Research: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_RESEARCH");
         } break;
         case Mission::Type::Data: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_DATA");
         } break;
         case Mission::Type::Storyline: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_STORYLINE");
         } break;
         case Mission::Type::Cosmos: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_COSMOS");
         } break;
         case Mission::Type::EpicArc: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_EPICARC");
         } break;
         case Mission::Type::Anomic: {
+            _log(SERVICE__ERROR, "MISSION_COMPLETE_2_CASE_ANOMIC");
         } break;
     }
 
+    _log(SERVICE__ERROR, "MISSION_COMPLETE_4_RETURN_FALSE");
     return false;
 }
 
@@ -2373,10 +2394,50 @@ bool Client::_VerifyVersion(VersionExchangeClient& version)
     return true;
 }
 
+static const char* PyRepTypeName(PyRep* rep)
+{
+    if (rep == nullptr) return "null";
+    if (rep->IsNone()) return "None";
+    if (rep->IsBool()) return "Bool";
+    if (rep->IsInt()) return "Int";
+    if (rep->IsLong()) return "Long";
+    if (rep->IsFloat()) return "Float";
+    if (rep->IsString()) return "String";
+    if (rep->IsWString()) return "WString";
+    if (rep->IsTuple()) return "Tuple";
+    if (rep->IsList()) return "List";
+    if (rep->IsDict()) return "Dict";
+    if (rep->IsObject()) return "Object";
+    if (rep->IsObjectEx()) return "ObjectEx";
+    if (rep->IsBuffer()) return "Buffer";
+    if (rep->IsToken()) return "Token";
+    return "Unknown";
+}
+
 bool Client::_VerifyCrypto(CryptoRequestPacket& cr)
 {
+    // Diagnostic logging: inspect the raw crypto request before decoding
+    // This is for protocol understanding purposes only
+    sLog.Warning("Crypto", "[%s] Crypto request keyVersion: %s", GetAddress().c_str(), cr.keyVersion.c_str());
+    sLog.Warning("Crypto", "[%s] Crypto request keyParams type: %s", GetAddress().c_str(), PyRepTypeName(cr.keyParams));
+    
+    if (cr.keyParams != nullptr && cr.keyParams->IsDict()) {
+        PyDict* dict = cr.keyParams->AsDict();
+        sLog.Warning("Crypto", "[%s] Crypto request keyParams dict size: %u", GetAddress().c_str(), dict->size());
+        
+        PyDict::const_iterator itr = dict->begin();
+        for (uint32 i = 0; itr != dict->end(); ++itr, ++i) {
+            std::string key = itr->first->AsString()->content();
+            PyRep* value = itr->second;
+            sLog.Warning("Crypto", "[%s]   keyParams[%u] key='%s' value_type=%s", 
+                        GetAddress().c_str(), i, key.c_str(), PyRepTypeName(value));
+        }
+    }
+    
     if (cr.keyVersion != "placebo") {
         //I'm sure cr.keyVersion can specify either CryptoAPI or PyCrypto, but its all binary so im not sure how.
+        sLog.Warning("Crypto", "[%s] Client using CryptoAPI (not placebo)", GetAddress().c_str());
+        
         CryptoAPIRequestParams car;
         if (!car.Decode(cr.keyParams)) {
             sLog.Error("Client","%s: Received invalid CryptoAPI request!", GetAddress().c_str());

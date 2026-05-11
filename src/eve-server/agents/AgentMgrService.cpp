@@ -68,27 +68,55 @@ AgentMgrService::AgentMgrService(EVEServiceManager& mgr) :
 }
 
 BoundDispatcher* AgentMgrService::BindObject(Client* client, PyRep* bindParameters) {
+    _log(AGENT__ERROR, "AGENT_BIND_1_ENTRY: client=%p, bindParameters=%p", client, bindParameters);
+    
+    if (client == nullptr) {
+        _log(AGENT__ERROR, "AGENT_BIND_2_CLIENT_NULL");
+        return nullptr;
+    }
+    
+    _log(AGENT__ERROR, "AGENT_BIND_3_CLIENT_OK");
+    
     if (!bindParameters->IsInt()) {
-        _log(SERVICE__ERROR, "%s: Non-integer argument '%s'", client->GetName(), bindParameters->TypeString());
+        _log(AGENT__ERROR, "AGENT_BIND_4_BINDPARAM_NOT_INT: type=%s", bindParameters->TypeString());
         return nullptr;
     }
 
+    _log(AGENT__ERROR, "AGENT_BIND_5_BINDPARAM_IS_INT");
+    
     uint32 agentID = bindParameters->AsInt()->value();
+    
+    _log(AGENT__ERROR, "AGENT_BIND_6_AGENT_ID_EXTRACTED: agentID=%u", agentID);
+    
     Agent* pAgent = sEntityList.GetAgent(agentID);
 
+    _log(AGENT__ERROR, "AGENT_BIND_7_ENTITY_LOOKUP_DONE: pAgent=%p, agentID=%u", pAgent, agentID);
+
     if (pAgent == nullptr) {
-        _log(AGENT__ERROR, "%s: Unable to obtain agent %u", client->GetName(), agentID);
+        _log(AGENT__ERROR, "AGENT_BIND_8_AGENT_NULL");
         return nullptr;
     }
+    
+    _log(AGENT__ERROR, "AGENT_BIND_9_AGENT_FOUND");
 
     auto it = this->m_instances.find (agentID);
 
-    if (it != this->m_instances.end ())
-        return it->second;
+    _log(AGENT__ERROR, "AGENT_BIND_10_CACHE_LOOKUP_DONE: found=%d", (it != this->m_instances.end()) ? 1 : 0);
 
+    if (it != this->m_instances.end ()) {
+        _log(AGENT__ERROR, "AGENT_BIND_11_CACHE_HIT: returning cached bound=%p", it->second);
+        return it->second;
+    }
+
+    _log(AGENT__ERROR, "AGENT_BIND_12_CACHE_MISS: about_to_new_AgentBound");
+    
     AgentBound* bound = new AgentBound(this->GetServiceManager(), *this, pAgent);
+    
+    _log(AGENT__ERROR, "AGENT_BIND_13_NEW_AGENTBOUND_DONE: bound=%p", bound);
 
     this->m_instances.insert_or_assign (agentID, bound);
+
+    _log(AGENT__ERROR, "AGENT_BIND_14_INSERT_DONE: returning bound=%p", bound);
 
     return bound;
 }
@@ -118,22 +146,6 @@ PyResult AgentMgrService::GetMyJournalDetails(PyCallArgs &call) {
     _log(AGENT__INFO, "AgentMgrService::Handle_GetMyJournalDetails() - size=%lli", call.tuple->size());
     call.Dump(AGENT__DUMP);
 
-    /** @todo  journal details
-     * found in eve/client/script/ui/shared/neocom/journal.py
-     *
-     *  missions = self.GetMyAgentJournalDetails()[0]
-     *    missionState, importantMission, missionType, missionName, agentID, expirationTime, bookmarks, remoteOfferable, remoteCompletable = missions[i]
-     *
-     *    research = sm.GetService('journal').GetMyAgentJournalDetails()[1]
-     *    agentID, typeID, ppd, points, level, quality, stationID = research[i]
-     *
-     *            self.agentjournal = sm.RemoteSvc('agentMgr').GetMyJournalDetails()
-     *            for mission in self.agentjournal[0]:
-     *                if mission[4] == agentID:
-     *            for research in self.agentjournal[1]:
-     *                if research[0] == agentID:
-     */
-
     PyTuple *tuple = new PyTuple(2);
     //missions:
     PyList* missions = new PyList();
@@ -141,15 +153,15 @@ PyResult AgentMgrService::GetMyJournalDetails(PyCallArgs &call) {
     sMissionDataMgr.LoadMissionOffers(call.client->GetCharacterID(), data);
     for (auto cur : data) {
         PyTuple* mData = new PyTuple(9);
-        mData->SetItem(0, new PyInt(cur.stateID)); //missionState  .. these may be wrong also.
-        mData->SetItem(1, new PyInt(cur.important?1:0)); //importantMission  -- integer boolean
-        mData->SetItem(2, new PyString(sMissionDataMgr.GetTypeLabel(cur.typeID))); //missionTypeLabel
-        mData->SetItem(3, new PyString(cur.name)); //missionName
-        mData->SetItem(4, new PyInt(cur.agentID)); //agentID
-        mData->SetItem(5, new PyLong(cur.expiryTime)); //expirationTime
-        mData->SetItem(6, cur.bookmarks->Clone()); //bookmarks -- if populated, this is PyList of PyDicts as defined below...
-        mData->SetItem(7, new PyBool(cur.remoteOfferable)); //remoteOfferable
-        mData->SetItem(8, new PyBool(cur.remoteCompletable)); //remoteCompletable
+        mData->SetItem(0, new PyInt(cur.stateID));
+        mData->SetItem(1, new PyInt(cur.important?1:0));
+        mData->SetItem(2, new PyString(sMissionDataMgr.GetTypeLabel(cur.typeID)));
+        mData->SetItem(3, new PyString(cur.name));
+        mData->SetItem(4, new PyInt(cur.agentID));
+        mData->SetItem(5, new PyLong(cur.expiryTime));
+        mData->SetItem(6, cur.bookmarks->Clone());
+        mData->SetItem(7, new PyBool(cur.remoteOfferable));
+        mData->SetItem(8, new PyBool(cur.remoteCompletable));
         missions->AddItem(mData);
     }
     tuple->SetItem(0, missions);
@@ -161,136 +173,18 @@ PyResult AgentMgrService::GetMyJournalDetails(PyCallArgs &call) {
     if (is_log_enabled(AGENT__RSP_DUMP))
         tuple->Dump(AGENT__RSP_DUMP, "   ");
     return tuple;
-  /*
-      [PySubStream 59 bytes]
-        [PyTuple 2 items]
-          [PyList 1 items]
-            [PyTuple 9 items]
-              [PyInt 1]
-              [PyInt 0]
-              [PyString "Encounter"]
-              [PyString "Seek and Destroy"]
-              [PyInt 3010819]
-              [PyIntegerVar 129495559223373466]
-              [PyList 0 items]
-              [PyBool False]
-              [PyBool False]
-          [PyList 0 items]
-
-    [PyTuple 1 items]
-      [PySubStream 53 bytes]
-        [PyTuple 2 items]
-          [PyList 1 items]
-            [PyTuple 9 items]
-              [PyInt 1]
-              [PyInt 0]
-              [PyString "Courier"]
-              [PyString "Good Harvest"]
-              [PyInt 3010819]
-              [PyIntegerVar 129495553039999957]
-              [PyList 0 items]
-              [PyBool False]
-              [PyBool False]
-          [PyList 0 items]
-
-
-      [PySubStream 513 bytes]
-        [PyTuple 2 items]
-          [PyList 1 items]
-            [PyTuple 9 items]
-              [PyInt 2]
-              [PyInt 0]
-              [PyString "Courier"]
-              [PyString "Good Harvest"]
-              [PyInt 3010819]
-              [PyIntegerVar 129495553802043094]
-              [PyList 2 items]
-                [PyObjectData Name: util.KeyVal]
-                  [PyDict 15 kvp]
-                    [PyString "itemID"]
-                    [PyInt 60014683]
-                    [PyString "typeID"]
-                    [PyInt 1529]
-                    [PyString "agentID"]
-                    [PyInt 3010819]
-                    [PyString "hint"]
-                    [PyString "Objective (Pick Up) & Agent Base - Annaro VIII - Moon 4 - State War Academy School"]
-                    [PyString "locationType"]
-                    [PyString "objective.source"]
-                    [PyString "memo"]
-                    [PyString ""]
-                    [PyString "created"]
-                    [PyIntegerVar 129489505802043094]
-                    [PyString "locationNumber"]
-                    [PyInt 0]
-                    [PyString "flag"]
-                    [PyNone]
-                    [PyString "locationID"]
-                    [PyInt 30002776]
-                    [PyString "ownerID"]
-                    [PyInt 1661059544]
-                    [PyString "y"]
-                    [PyInt 0]
-                    [PyString "x"]
-                    [PyInt 0]
-                    [PyString "solarsystemID"]
-                    [PyInt 30002776]
-                    [PyString "z"]
-                    [PyInt 0]
-                [PyObjectData Name: util.KeyVal]
-                  [PyDict 15 kvp]
-                    [PyString "itemID"]
-                    [PyInt 60000016]
-                    [PyString "typeID"]
-                    [PyInt 1531]
-                    [PyString "agentID"]
-                    [PyInt 3010819]
-                    [PyString "hint"]
-                    [PyString "Objective (Drop Off) - Tasabeshi VIII - Moon 13 - CBD Corporation Storage"]
-                    [PyString "locationType"]
-                    [PyString "objective.destination"]
-                    [PyString "memo"]
-                    [PyString ""]
-                    [PyString "created"]
-                    [PyIntegerVar 129489505802043094]
-                    [PyString "locationNumber"]
-                    [PyInt 0]
-                    [PyString "flag"]
-                    [PyNone]
-                    [PyString "locationID"]
-                    [PyInt 30002778]
-                    [PyString "solarsystemID"]
-                    [PyInt 30002778]
-                    [PyString "ownerID"]
-                    [PyInt 1661059544]
-                    [PyString "y"]
-                    [PyInt 0]
-                    [PyString "x"]
-                    [PyInt 0]
-                    [PyString "z"]
-                    [PyInt 0]
-              [PyBool False]
-              [PyBool False]
-          [PyList 0 items]
-    */
-
 }
 
-
-/** not handled */
 PyResult AgentMgrService::GetMyEpicJournalDetails(PyCallArgs& call)
 {
-    //no args
-  _log(AGENT__INFO, "AgentMgrBound::Handle_GetMyEpicJournalDetails() - size=%lli", call.tuple->size());
-
+    _log(AGENT__INFO, "AgentMgrBound::Handle_GetMyEpicJournalDetails() - size=%lli", call.tuple->size());
     return new PyList();
 }
 
 PyResult AgentMgrService::GetCareerAgents(PyCallArgs &call)
 {
-  _log(AGENT__INFO, "AgentMgrBound::Handle_GetCareerAgents() - size=%lli", call.tuple->size());
+    _log(AGENT__INFO, "AgentMgrBound::Handle_GetCareerAgents() - size=%lli", call.tuple->size());
     call.Dump(AGENT__DUMP);
-
     return PyStatic.NewZero();
 }
 
@@ -301,13 +195,7 @@ EpicArcService::EpicArcService() :
 }
 
 PyResult EpicArcService::AgentHasEpicMissionsForCharacter(PyCallArgs &call, PyInt* agentID) {
-  /**
-     epicArcStatusSvc = sm.RemoteSvc('epicArcStatus').AgentHasEpicMissionsForCharacter(agent.agentID):
-     */
     _log(AGENT__INFO, "EpicArcService::Handle_AgentHasEpicMissionsForCharacter() - size=%lli", call.tuple->size());
     call.Dump(AGENT__DUMP);
-
-    // return boolean
     return PyStatic.NewFalse();
-
 }

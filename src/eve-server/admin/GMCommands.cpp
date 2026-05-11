@@ -252,6 +252,8 @@ PyResult Command_spawn(Client* pClient, CommandDB* db, EVEServiceManager &servic
     bool offsetLocationSet = false;
     std::string usage = "Correct Usage: <br><br> /spawn [typeID(int)/typeName(string)] <br><br>With optional spawn count: <br> /spawn [typeID(int)/typeName(string)] [count] <br><br>With optional count and (X,Y,Z) coordinate: <br> /spawn [typeID(int/typeName(string)] [count] [x(float)] [y(float)] [z(float)]";
 
+    _log(SERVICE__ERROR, "CMD_SPAWN_1_ENTRY arg1=%s argCount=%u", args.arg(1).c_str(), args.argCount());
+
     if (!pClient->IsInSpace())
         throw CustomError ("You must be in space to spawn things.");
 
@@ -263,12 +265,16 @@ PyResult Command_spawn(Client* pClient, CommandDB* db, EVEServiceManager &servic
         throw CustomError ("Argument 1 should be an item type ID");
 
     int typeID = atoi(args.arg(1).c_str());
+    _log(SERVICE__ERROR, "CMD_SPAWN_2_AFTER_ATOI typeID=%d", typeID);
 
     // Search for item type using typeID:
+    _log(SERVICE__ERROR, "CMD_SPAWN_3_BEFORE_ITEMSEARCH typeID=%d", typeID);
     if (!(db->ItemSearch(typeID, actualTypeID, actualTypeName, actualGroupID, actualCategoryID, actualRadius)))
     {
+        _log(SERVICE__ERROR, "CMD_SPAWN_4_AFTER_ITEMSEARCH_FAILED typeID=%d", typeID);
         return new PyString("Unknown typeID or typeName returned no matches.");
     }
+    _log(SERVICE__ERROR, "CMD_SPAWN_4_AFTER_ITEMSEARCH ok=1 actualTypeID=%u groupID=%u categoryID=%u", actualTypeID, actualGroupID, actualCategoryID);
 
     if (args.argCount() > 2)
     {
@@ -341,7 +347,9 @@ PyResult Command_spawn(Client* pClient, CommandDB* db, EVEServiceManager &servic
             loc
        );
 
+        _log(SERVICE__ERROR, "CMD_SPAWN_5_BEFORE_SPAWNITEM typeID=%u", actualTypeID);
         item = sItemFactory.SpawnItem(idata);
+        _log(SERVICE__ERROR, "CMD_SPAWN_6_AFTER_SPAWNITEM item=%p", item.get());
         if (item.get() == nullptr)
             throw CustomError ("Unable to spawn item of type %u.", typeID);
 
@@ -377,11 +385,13 @@ PyResult Command_spawn(Client* pClient, CommandDB* db, EVEServiceManager &servic
             } break;
         }
 
-
+        _log(SERVICE__ERROR, "CMD_SPAWN_7_BEFORE_BUILD entityTypeID=%u groupID=%u categoryID=%u", entity.typeID, entity.groupID, entity.categoryID);
         // Actually do the spawn using SystemManager's BuildEntity:
         if (!pClient->SystemMgr()->BuildDynamicEntity(entity)) {
+            _log(SERVICE__ERROR, "CMD_SPAWN_8_AFTER_BUILD_FAILED typeID=%u", actualTypeID);
             return new PyString("Spawn Failed: typeID or typeName not supported.");
         }
+        _log(SERVICE__ERROR, "CMD_SPAWN_8_AFTER_BUILD typeID=%u success=1", actualTypeID);
     }
 
     sLog.Yellow("Command_spawn", "%s: Spawned %u in space, %u times", pClient->GetName(), typeID, spawnCount);

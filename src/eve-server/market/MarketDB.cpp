@@ -46,7 +46,7 @@ PyRep *MarketDB::GetStationAsks(uint32 stationID) {
         "SELECT"
         "    typeID, MIN(price) AS price, volRemaining, stationID "
         " FROM mktOrders "
-        " WHERE stationID=%u"
+        " WHERE stationID=%u AND bid=0"
         " GROUP BY typeID",  stationID))
         //" LIMIT %u",  stationID, sConfig.market.StationOrderLimit))
     {
@@ -67,7 +67,7 @@ PyRep *MarketDB::GetSystemAsks(uint32 solarSystemID) {
         "SELECT"
         "    typeID, MIN(price) AS price, volRemaining, stationID "
         " FROM mktOrders "
-        " WHERE solarSystemID=%u"
+        " WHERE solarSystemID=%u AND bid=0"
         " GROUP BY typeID", solarSystemID))
         //" LIMIT %u", solarSystemID, sConfig.market.SystemOrderLimit))
     {

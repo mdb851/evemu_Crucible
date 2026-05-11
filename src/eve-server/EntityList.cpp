@@ -307,17 +307,53 @@ void EntityList::RemoveStation(uint32 stationID) {
     m_stations.erase(stationID);
 }
 
-Agent* EntityList::GetAgent(uint32 agentID) {
-    std::map<uint32, Agent*>::iterator res = m_agents.find(agentID);
-    if (res != m_agents.end())
-        return res->second;
+// MARKER_ENTITYLIST_CPP_BUILD_VERIFICATION_UUID_67890
+static void call_marker() {
+    static bool marked = false;
+    if (!marked) {
+        _log(SERVICE__ERROR, "===VERIFICATION_MARKER_ENTITYLIST_CPP_BUILD_TIMESTAMP_67890===");
+        marked = true;
+    }
+}
 
+Agent* EntityList::GetAgent(uint32 agentID) {
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_1_ENTRY: agentID=%u", agentID);
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_2_CONTAINER_SIZE: m_agents.size()=%lu", m_agents.size());
+    
+    std::map<uint32, Agent*>::iterator res = m_agents.find(agentID);
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_3_FIND_DONE: found=%d", (res != m_agents.end()) ? 1 : 0);
+    
+    if (res != m_agents.end()) {
+        _log(SERVICE__ERROR, "ENTITY_GET_AGENT_4_CACHE_HIT: returning=%p", res->second);
+        return res->second;
+    }
+
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_5_CACHE_MISS: creating new Agent(%u)", agentID);
+    
     Agent* pAgent = new Agent(agentID);
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_6_NEW_AGENT_DONE: pAgent=%p", pAgent);
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_6b_MEMBER_ACCESS_TEST: pAgent->GetID()=%u", pAgent->GetID());
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_7_BEFORE_LOAD pAgent=%p about to call pAgent->Load()", pAgent);
+    
     if (!pAgent->Load()) {
+        _log(SERVICE__ERROR, "ENTITY_GET_AGENT_8_LOAD_FAILED: deleting pAgent");
         delete pAgent;
         return nullptr;
     }
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_9_LOAD_SUCCESS: pAgent=%p", pAgent);
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_10_BEFORE_INSERT: about to insert into map");
+    
     m_agents[agentID] = pAgent;
+    
+    _log(SERVICE__ERROR, "ENTITY_GET_AGENT_11_AFTER_INSERT: returning pAgent=%p", pAgent);
+    
     return pAgent;
 }
 
@@ -788,3 +824,7 @@ void EntityList::RegisterSID(int64 &sessionID) {
 void EntityList::RemoveSID ( int64 sessionID ) {
     m_sessions.erase(sessionID);
 }
+
+
+
+

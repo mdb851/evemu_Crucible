@@ -524,12 +524,16 @@ bool SystemManager::LoadPlayerDynamics() {
 }
 
 bool SystemManager::BuildDynamicEntity(const DBSystemDynamicEntity& entity, uint32 launcherID/*0*/) {
+    _log(SERVICE__ERROR, "BUILD_ENTITY_1_ENTRY typeID=%u groupID=%u categoryID=%u itemID=%u", entity.typeID, entity.groupID, entity.categoryID, entity.itemID);
     SystemEntity* pSE = DynamicEntityFactory::BuildEntity(*this, entity);
+    _log(SERVICE__ERROR, "BUILD_ENTITY_2_AFTER_BUILD pSE=%p typeID=%u", pSE, entity.typeID);
     if (pSE == nullptr) {
+        _log(SERVICE__ERROR, "BUILD_ENTITY_3_RETURNED_NULL typeID=%u groupID=%u categoryID=%u", entity.typeID, entity.groupID, entity.categoryID);
         sLog.Error( "SystemManager::BuildDynamicEntity()", "Failed to create entity for item %u (grp: %u, type %u)", entity.itemID, entity.groupID, entity.typeID);
         return false;
     }
 
+    _log(SERVICE__ERROR, "BUILD_ENTITY_4_SUCCESS_BEFORE_ADDENTITY typeID=%u itemID=%u", entity.typeID, entity.itemID);
     _log(ITEM__TRACE, "SystemManager::BuildDynamicEntity() - Created dynamic entity %u of type %u for %s(%u)", \
                 entity.itemID, entity.typeID, m_data.name.c_str(),m_data.systemID );
     AddEntity(pSE);
@@ -549,14 +553,17 @@ bool SystemManager::BuildDynamicEntity(const DBSystemDynamicEntity& entity, uint
 
 SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBSystemDynamicEntity& entity)
 {
+    _log(SERVICE__ERROR, "BUILD_FACTORY_1_ENTRY typeID=%u groupID=%u categoryID=%u itemID=%u", entity.typeID, entity.groupID, entity.categoryID, entity.itemID);
     FactionData data = FactionData();
         data.allianceID = entity.allianceID;
         data.corporationID = entity.corporationID;
         data.factionID = entity.factionID;
         data.ownerID = entity.ownerID;
 
+    _log(SERVICE__ERROR, "BUILD_FACTORY_2_BEFORE_SWITCH categoryID=%u groupID=%u typeID=%u", entity.categoryID, entity.groupID, entity.typeID);
     switch (entity.categoryID) {
         case EVEDB::invCategories::Asteroid: {
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_ASTEROID typeID=%u", entity.typeID);
             InventoryItemRef asteroid = sItemFactory.GetItemRef( entity.itemID );
             if (asteroid.get() == nullptr)
                 ; /** @todo make error msg here */
@@ -565,6 +572,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             return aSE;
         } break;
         case EVEDB::invCategories::Ship: {
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_SHIP typeID=%u", entity.typeID);
             ShipItemRef ship = sItemFactory.GetShipRef( entity.itemID );
             if (ship.get() == nullptr)
                 return nullptr;
@@ -574,6 +582,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             return sSE;
         } break;
         case EVEDB::invCategories::Deployable: {
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_DEPLOYABLE typeID=%u", entity.typeID);
             InventoryItemRef deployable = sItemFactory.GetItemRef( entity.itemID );
             if (deployable.get() == nullptr)
                 return nullptr;
@@ -586,6 +595,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
         //  these should go into m_staticEntities
         case EVEDB::invCategories::StructureUpgrade: // SOV upgrade structures   these may need their own class one day.
         case EVEDB::invCategories::Structure: {         // POS items
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_STRUCTURE typeID=%u groupID=%u", entity.typeID, entity.groupID);
             StructureItemRef structure = sItemFactory.GetStructureRef( entity.itemID );
             if (structure.get() == nullptr)
                 return nullptr;
@@ -650,6 +660,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             return pSSE;
         } break;
         case EVEDB::invCategories::SovereigntyStructure: {// SOV structures
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_SOVSTRUCTURE typeID=%u groupID=%u", entity.typeID, entity.groupID);
             //Create item ref
             StructureItemRef structure = sItemFactory.GetStructureRef( entity.itemID );
             if (structure.get() == nullptr)
@@ -681,6 +692,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             return sSSE;
         } break;
         case EVEDB::invCategories::Orbitals: {           // planet orbitals   these should go into m_staticEntities
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_ORBITALS typeID=%u groupID=%u", entity.typeID, entity.groupID);
             StructureItemRef structure = sItemFactory.GetStructureRef( entity.itemID );
             if (structure.get() == nullptr)
                 return nullptr;
@@ -705,6 +717,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             return pCoSE;
         } break;
         case EVEDB::invCategories::Celestial: {
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_CELESTIAL typeID=%u groupID=%u", entity.typeID, entity.groupID);
             // TODO: (just use CelestialEntity class for these until their own classes are written)
             // * WarpGateEntity  <-- Warp_Gate
             // * WormholeEntity  <-- Wormhole
@@ -806,6 +819,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             } break;
         } break;
         case EVEDB::invCategories::Entity: {            // Entities
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_ENTITY typeID=%u groupID=%u", entity.typeID, entity.groupID);
             if (entity.groupID == EVEDB::invGroups::Spawn_Container ) {     // these are destructible objects found in dungeons
                 // For category=Entity, group=Spawn Container, create a CargoContainer object:
                 /** @todo  this needs its own class....there are 477 types, spawning everything..rats, modules, items, etc. */
@@ -884,6 +898,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             }
         } break;
         case EVEDB::invCategories::Drone: {             // Player Drones
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_DRONE typeID=%u groupID=%u", entity.typeID, entity.groupID);
             InventoryItemRef drone = sItemFactory.GetItemRef( entity.itemID );
             if (drone.get() == nullptr)
                 return nullptr;
@@ -893,6 +908,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             return dSE;
         } break;
         case EVEDB::invCategories::Charge: {
+            _log(SERVICE__ERROR, "BUILD_FACTORY_3_CASE_CHARGE typeID=%u groupID=%u", entity.typeID, entity.groupID);
             switch (entity.groupID) {
                 case EVEDB::invGroups::Scanner_Probe: {
                     ProbeItemRef pRef = sItemFactory.GetProbeRef(entity.itemID);
@@ -915,6 +931,7 @@ SystemEntity* DynamicEntityFactory::BuildEntity(SystemManager& sysMgr, const DBS
             }
         } break;
     }
+    _log(SERVICE__ERROR, "BUILD_FACTORY_4_UNHANDLED_CATEGORY categoryID=%u typeID=%u", entity.categoryID, entity.typeID);
     sLog.Warning("BuildEntity", "Unhandled dynamic entity category %u for item %u of type %u", entity.categoryID, entity.itemID, entity.typeID);
     EvE::traceStack();
     return nullptr;

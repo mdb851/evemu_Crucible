@@ -31,7 +31,8 @@ ADD /cmake/ /src/cmake
 ADD /dep/ /src/dep
 ADD /src/ /src/src
 ADD /utils/ /src/utils
-ADD /.git/ /src/.git
+# .git is optional - try to add if it exists
+RUN if [ -d /.git ]; then cp -r /.git /src/.git; fi || true
 
 # Create necessary directories
 RUN mkdir -p /src/build /app /app/logs /app/server_cache /app/image_cache

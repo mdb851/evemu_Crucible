@@ -30,7 +30,9 @@
 #include "../../eve-common/EVE_Damage.h"
 
 #include "Client.h"
+#include "account/AccountService.h"
 #include "EntityList.h"
+#include "ship/ShipDB.h"
 #include "EVEServerConfig.h"
 #include "manufacturing/Blueprint.h"
 #include "map/MapDB.h"
@@ -412,6 +414,24 @@ void ShipSE::Killed(Damage &fatal_blow) {
     std::string wreck_name = m_self->itemName() + " Wreck";
 
     if (!m_self->HasPilot()) {
+        // Abandoned hull (e.g. after eject): insured piloted kills run PayInsurance() in the branch below.
+        if (m_self->groupID() != EVEDB::invGroups::Rookieship) {
+            uint32 beneficiaryCharID = 0;
+            double payoutISK = 0.0;
+            if (m_db.TryGetInsuranceSettlement(m_self->itemID(), beneficiaryCharID, payoutISK)) {
+                std::string reason = "Insurance payment for loss of the ship ";
+                reason += m_self->itemName();
+                AccountService::TransferFunds(
+                    corpSCC,
+                    beneficiaryCharID,
+                    payoutISK,
+                    reason,
+                    Journal::EntryType::Insurance,
+                    m_self->typeID()
+                );
+                ShipDB::DeleteInsuranceByShipID(m_self->itemID());
+            }
+        }
         // Spawn a wreck for the Ship that was destroyed:
         ItemData wreckItemData(wreckTypeID, killerID, locationID, flagNone, wreck_name.c_str(), wreckPosition, itoa(m_allyID));
         WreckContainerRef wreckItemRef = sItemFactory.SpawnWreckContainer( wreckItemData );
@@ -483,7 +503,9 @@ void ShipSE::Killed(Damage &fatal_blow) {
         data.finalAllianceID = killer->GetAllianceID();
         data.finalFactionID = (killer->GetWarFactionID() > 500021 ? 500021 : killer->GetWarFactionID());
         data.finalShipTypeID = killer->GetTypeID();
-        data.finalWeaponTypeID = fatal_blow.weaponRef->typeID();
+        data.finalWeaponTypeID = fatal_blow.weaponRef.get() != nullptr
+            ? fatal_blow.weaponRef->typeID()
+            : 0;
         data.finalSecurityStatus = 0;   /* fix this */
         data.finalDamageDone = fatal_blow.GetTotal();
 

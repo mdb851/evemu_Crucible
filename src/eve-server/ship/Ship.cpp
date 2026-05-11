@@ -2501,13 +2501,18 @@ void ShipSE::PayInsurance() {
         return;
     }
 
+    uint32 beneficiaryCharID = 0;
+    double payoutISK = 0.0;
+    if (!m_db.TryGetInsuranceSettlement(m_self->itemID(), beneficiaryCharID, payoutISK))
+        return;
+
     std::string reason = "Insurance payment for loss of the ship ";
     reason += m_self->itemName();
 
     AccountService::TransferFunds(
         corpSCC,
-        m_ownerID,
-        m_db.GetShipInsurancePayout(m_self->itemID()),
+        beneficiaryCharID,
+        payoutISK,
         reason,
         Journal::EntryType::Insurance,
         m_self->typeID()
