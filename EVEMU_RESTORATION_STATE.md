@@ -40,6 +40,28 @@
 | Contracts `SearchContracts` byname safety | PARTIAL (code; matrix unchanged) |
 | External review: corp accept hardening + `RUN_WITH_GDB` | PARTIAL |
 | Courier corp collateral + `acceptorWalletKey` + `acceptorCorpID` + `CompleteContract` routing | PARTIAL (this slice) |
+| Paper doll: `UpdateExistingCharacter*` DB persistence + `GetPaperDollData` full KeyVal parity | CODE PASS / **live observer refresh unverified** |
+
+---
+
+## Paper doll / character appearance (May 2026)
+
+**Server (branch `restoration/contract-accept-corp`):**
+
+- `paperDollServer.UpdateExistingCharacterFull` / `UpdateExistingCharacterLimited` persist body + portrait after clearing prior rows (`CharacterDB::ClearPaperDollAppearanceData`, `ClearChrPortraitData`; `CharacterAppearance::Build`, `CharacterPortrait::Build`).
+- `GetPaperDollData` returns the same **`util.KeyVal`** shape as `GetMyPaperDollData` (`colors`, `modifiers`, `appearance`, `sculpts`) for the requested `characterID`.
+
+**Live verification:** PARTIAL — confirm re-customization writes DB rows and that **your** client refreshes portrait / show-info / full-body fetch as expected.
+
+**Remaining risk (not fixed server-side):** **Already-present observers** may keep stale in-scene meshes until relog or another client-driven refresh. The codebase does not expose an obvious, payload-complete appearance broadcast: `ShipSE::MakeSlimItem` has no paper-doll fields, and blindly adding `SendNotification` names would be speculative.
+
+**Next step if refresh fails in testing:** trace the **Crucible client** by surface (pick one):
+
+1. **Station interior** — other characters’ body meshes.
+2. **Space (pod / ship)** — in-bubble entity visuals.
+3. **Show-info / portrait only** — profile-style UI (often satisfied by RPC refetch alone).
+
+Document observed RPCs, notifications, and destiny updates during a re-customize; only then mirror the real pattern on the server.
 
 ---
 
@@ -107,6 +129,7 @@ No blocker on insurance.
 - **ShipDB / Ship.cpp / Damage.cpp:** insurance settlement from DB `ownerID`; abandoned-hull destruction path pays out.
 - **ShipService.cpp:** Eject/Board/SelfDestruct velocity gate; **SelfDestruct** flexible RPC args + fatal kill; Board cyno message corrected.
 - **MarketProxyService:** ModifyCharOrder `bid` PyBool (Crucible); corp market unblocked + corp-aware modify/cancel + corp sell ownership gate.
+- **PaperDollService.cpp / CharacterDB:** appearance re-customize persists to `avatars` / `avatar_*` / `chrPortraitData`; `GetPaperDollData` returns full paper-doll KeyVal (commits through `41183ce4` on `restoration/contract-accept-corp`).
 
 ## Insurance test fixture (historical)
 - Bantam typeID=582; Caldari Frigate skill gate resolved for boarding.
