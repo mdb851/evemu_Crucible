@@ -314,9 +314,25 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
         endRegionId = 0;
     }
 
-    // Courier-specific step - if we have a reward, we'd want to take it in advance and store it "in heap" to block no-funds scam
+    // Courier-specific step — escrow reward up front (character wallet or corp cash division).
     if (contractType->value() == 3 && reward->value() > 0) {
-        if (call.client->GetBalance() >= reward->value()) {
+        if (forCorp && IsPlayerCorp(call.client->GetCorporationID())) {
+            const double need = static_cast<double>(reward->value());
+            if (AccountDB::GetCorpBalance(call.client->GetCorporationID(), Account::KeyType::Cash) < need) {
+                call.client->SendNotifyMsg("Corporation does not have enough ISK to pay the reward");
+                return nullptr;
+            }
+            AccountService::HandleCorpTransaction(
+                call.client->GetCorporationID(),
+                Journal::EntryType::ContractReward,
+                call.client->GetCharacterID(),
+                call.client->GetCharacterID(),
+                Account::CreditType::ISK,
+                Account::KeyType::Cash,
+                -need,
+                "Courier contract reward escrow",
+                0);
+        } else if (call.client->GetBalance() >= reward->value()) {
             call.client->AddBalance(-reward->value());
         } else {
             call.client->SendNotifyMsg("You do not have enough ISK to pay the reward");
@@ -395,7 +411,7 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
              * We need to validate traded items exist, have correct owner and quantities. Any item that fails the check is excluded from the list.
              */
              DBResultRow row;
-             int expectedOwnerID = call.client->GetCharacterID();
+             const uint32 expectedOwnerID = forCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
              // We work directly with DBQueryResult since resulting CRowSet does not fit ctrItems format - thus, it would be needless processing.
              while(res.GetRow(row)) {
                  int itemID = row.GetInt(0);
@@ -409,7 +425,7 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
                  int damage = row.IsNull(9) ? 0 : row.GetInt(9);
                  int flag = row.IsNull(10) ? 0 : row.GetInt(10);
 
-                 if (ownerID == expectedOwnerID && quantity == expectedQuantities.find(itemID)->second) {
+                 if (static_cast<uint32>(ownerID) == expectedOwnerID && quantity == expectedQuantities.find(itemID)->second) {
                      itemsToInsert.append("(" + std::to_string(contractId) + ", " +
                         std::to_string(itemID) + ", " +
                         std::to_string(quantity) + ", " +
@@ -751,7 +767,9 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
     call.Dump(SERVICE__CALL_DUMP);
 
     DBQueryResult res;
-    if (!sDatabase.RunQuery(res, "SELECT contractType, status, price, reward, collateral, volume, startStationID, endStationID, issuerID, forCorp, crateID FROM ctrContracts WHERE contractId = %u", contractID))
+    if (!sDatabase.RunQuery(res,
+                            "SELECT contractType, status, price, reward, collateral, volume, startStationID, endStationID, issuerID, issuerCorpID, forCorp, crateID FROM ctrContracts WHERE contractId = %u",
+                            contractID))
     {
         codelog(DATABASE__ERROR, "Error in query: %s", res.error.c_str());
         return new PyBool(false);
@@ -767,9 +785,10 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
     int collateral = row.GetInt(4);
     int startStationID = row.GetInt(6);
     int endStationID = row.GetInt(7);
-    int issuerID = row.GetInt(8);
-    bool forCorp = row.GetBool(9);
-    int crateID = row.GetInt(10);
+    uint32 issuerCorpID = row.GetUInt(9);
+    bool issuerForCorp = row.GetBool(10);
+    int crateID = row.GetInt(11);
+    const uint32 issuerWalletID = issuerForCorp ? issuerCorpID : static_cast<uint32>(row.GetInt(8));
 
     int64 timestamp = int64(GetFileTimeNow());
     switch (completionStatus->value()) {
@@ -798,7 +817,7 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
                 // Once checks have passed, we extract the items into contractor's inventory
                 for (const auto& entry : expectedItems) {
                     InventoryItemRef item = sItemFactory.GetItemRef(entry.first);
-                    item->ChangeOwner(issuerID, true);
+                    item->ChangeOwner(issuerWalletID, true);
                     item->Move(endStationID, flagHangar, true);
                 }
                 // Plastic wrap seems to self-destruct after all the items are removed from it, so there's no need to delete it.
@@ -831,9 +850,17 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
             if (collateral > 0) {
                 // Since we've taken the collateral prior to it and left it "hanging in the air" we put it back into acceptor's wallet and then issue a transfer
                 call.client->AddBalance(collateral);
-                AccountService::TransferFunds(call.client->GetCharacterID(), issuerID, collateral, "Collateral payment for failed contract", Journal::EntryType::ContractCollateral, contractID->value());
+                AccountService::TransferFunds(call.client->GetCharacterID(),
+                                              issuerWalletID,
+                                              collateral,
+                                              "Collateral payment for failed contract",
+                                              Journal::EntryType::ContractCollateral,
+                                              contractID->value(),
+                                              Account::KeyType::Cash,
+                                              Account::KeyType::Cash,
+                                              call.client);
             }
-            // Then, we update the contract as Афшдув.
+            // Then, we update the contract as failed.
             DBerror err;
             if (!sDatabase.RunQuery(err,
                                     "UPDATE ctrContracts SET status = %u, dateCompleted = %lli WHERE contractId = %u",
@@ -983,12 +1010,32 @@ PyResult ContractProxy::NumOutstandingContracts(PyCallArgs &call) {
 }
 
 PyResult ContractProxy::GetItemsInStation(PyCallArgs &call, PyInt* stationID, std::optional<PyInt*> forCorp) {
-    uint32 station = call.tuple->GetItem(0)->AsInt()->value();
-
-    if (sDataMgr.IsStation(stationID->value()) == false)
+    if (!sDataMgr.IsStation(stationID->value()))
         return nullptr;
 
-    return sItemFactory.GetStationRef(station)->GetMyInventory()->List(flagHangar);
+    Inventory* inv = sItemFactory.GetStationRef(stationID->value())->GetMyInventory();
+    const bool wantCorp = forCorp.has_value() && forCorp.value()->value() != 0;
+
+    if (!wantCorp)
+        return inv->List(flagHangar, call.client->GetCharacterID());
+
+    static const EVEItemFlags corpHangarFlags[] = {
+        flagHangar,
+        flagCorpHangar2,
+        flagCorpHangar3,
+        flagCorpHangar4,
+        flagCorpHangar5,
+        flagCorpHangar6,
+        flagCorpHangar7
+    };
+
+    DBRowDescriptor* header = sDataMgr.CreateHeader();
+    CRowSet* rowset = new CRowSet(&header);
+    const uint32 corpID = call.client->GetCorporationID();
+    for (EVEItemFlags fl : corpHangarFlags)
+        inv->List(rowset, fl, corpID);
+
+    return rowset;
 }
 
 PyResult ContractProxy::CollectMyPageInfo(PyCallArgs &call) {
