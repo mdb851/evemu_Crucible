@@ -380,6 +380,8 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
         endRegionId = 0;
     }
 
+    const uint32 issuerWalletKeyInsert = forCorp ? static_cast<uint32>(call.client->GetCorpAccountKey()) : 0u;
+
     // Courier-specific step - if we have a reward, we'd want to take it in advance and store it "in heap" to block no-funds scam
     if (contractType->value() == 3 && reward->value() > 0) {
         if (call.client->GetBalance() >= reward->value()) {
@@ -401,16 +403,16 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
         "(contractType, issuerID, issuerCorpID, forCorp, isPrivate, assigneeID, "
         "dateIssued, dateExpired, expireTimeInMinutes, duration, numDays, "
         "startStationID, startSolarSystemID, startRegionID, endStationID, endSolarSystemID, endRegionID, "
-        "price, reward, collateral, title, description, issuerAllianceID, startStationDivision) "
+        "price, reward, collateral, title, description, issuerAllianceID, startStationDivision, issuerWalletKey) "
         "VALUES "
         "(%u, %u, %u, %u, %u, %u, "
         "%lli, %lli, %u, %u, %u, "
         "%u, %u, %u, %u, %u, %u,"
-        "%u, %u, %u, '%s', '%s', %u, %u)",
+        "%u, %u, %u, '%s', '%s', %u, %u, %u)",
         contractType->value(), call.client->GetCharacterID(), call.client->GetCorporationID(), forCorp, isPrivate->value()?1:0, assigneeID.has_value() ? assigneeID.value()->value() : 0,
         int64(GetFileTimeNow()), int64(GetRelativeFileTime(0, 0, expireTime->value())), expireTime->value(), duration->value(), expireTime->value() / 1440,
         startStationID->value(), startSystemId, startRegionId, endStationID.has_value() ? endStationID.value()->value() : 0, endSystemId, endRegionId,
-        price->value(), reward->value(), collateral->value(), title->content().c_str(), description->content().c_str(), call.client->GetAllianceID(), startStationDivision))
+        price->value(), reward->value(), collateral->value(), title->content().c_str(), description->content().c_str(), call.client->GetAllianceID(), startStationDivision, issuerWalletKeyInsert))
     {
         codelog(DATABASE__ERROR, "Failed to insert new entity: %s", err.c_str());
         return nullptr;
@@ -589,7 +591,7 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
 
     DBQueryResult res;
     if (!sDatabase.RunQuery(res,
-                            "SELECT contractType, status, price, reward, collateral, volume, startStationID, issuerID, issuerCorpID, forCorp, startSolarSystemID, endSolarSystemID "
+                            "SELECT contractType, status, price, reward, collateral, volume, startStationID, issuerID, issuerCorpID, forCorp, startSolarSystemID, endSolarSystemID, issuerWalletKey "
                             "FROM ctrContracts WHERE contractId = %u",
                             contractID->value()))
     {
@@ -613,11 +615,11 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
     bool issuerForCorp = row.GetBool(9);
     int startSolarSystemID = row.GetInt(10);
     int endSolarSystemID = row.GetInt(11);
+    const int issuerWalletKeyRaw = row.GetInt(12);
 
     const uint32 issuerWalletID = issuerForCorp ? issuerCorpID : static_cast<uint32>(issuerID);
     const uint32 acceptorItemOwnerID = acceptorForCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
-    // Issuer division not persisted on ctrContracts — matches balance probes above (corp issuer division 1 / Cash).
-    const uint16 issuerMoneyKey = Account::KeyType::Cash;
+    const uint16 issuerMoneyKey = issuerWalletKeyRaw != 0 ? static_cast<uint16>(issuerWalletKeyRaw) : Account::KeyType::Cash;
     const uint16 acceptorMoneyKey = acceptorForCorp ? static_cast<uint16>(call.client->GetCorpAccountKey()) : Account::KeyType::Cash;
 
     if (status == 0) {
@@ -646,7 +648,7 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                 }
                 if (reward > 0) {
                     if (issuerForCorp) {
-                        if (AccountDB::GetCorpBalance(issuerCorpID, Account::KeyType::Cash) < reward)
+                        if (AccountDB::GetCorpBalance(issuerCorpID, issuerMoneyKey) < reward)
                             rewardRequirementMet = false;
                     } else if (sItemFactory.GetCharacterRef(issuerID)->balance(Account::CreditType::ISK) < reward) {
                         rewardRequirementMet = false;
