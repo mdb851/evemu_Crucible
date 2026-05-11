@@ -203,7 +203,9 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 **Seventh compile-first probe (temporary; reverted):** Full **probe-six** set plus **`EntityList.cpp`**. **Compile OK, link failed.** After the same **`Client.cpp.o`** relocation **warning** (not the first hard failure), **first `undefined reference`** cluster: **`AccountService.cpp.o`** — **`CorporationDB::GetCorpName`**, **`GetDivisionName`**, **`CharacterDB::GetCorpTaxRate`**, **`GetCorpID`** — probe seven **removed `EntityList::*` from the head** of the tail vs probe six. **Reverted** to 5-TU baseline.
 
-Next compile-first probe (eighth): keep the **full probe-seven** TU set, add **`corporation/CorporationDB.cpp`** and **`character/CharacterDB.cpp`** together (both appear in the new first cluster), rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure.
+**Eighth compile-first probe (temporary; reverted):** Full **probe-seven** set plus **`corporation/CorporationDB.cpp`**, **`character/CharacterDB.cpp`**. **Compile OK, link failed.** **`CorporationDB::*`** / **`CharacterDB::*`** from **`AccountService`** no longer head the tail — probe eight **cleared the corp/character DB ring** at the front. **First `undefined reference`** cluster (same **`Client.cpp.o`** **`ShipSE`** relocation **warning** first): **`Character.cpp.o`** — **`Skill::SkillPrereqsComplete`**, **`Skill::VerifyAttribs`**, **`StandingDB::GetStanding`**, **`StandingDB::SetStanding`**, **`StatisticMgr::Add`**, **`StatisticMgr::StatisticMgr()`**, **`Skill::GetSPForLevel`**, **`Skill::GetCurrentSP`**, then **`CertificateMgrDB`**, **`FleetService`**, **`FxDataMgr`**, **`ItemDB`**, etc. **Reverted** to 5-TU baseline.
+
+Next compile-first probe (ninth): keep the **full probe-eight** TU set; add **`character/Skill.cpp`** first (covers the new **Skill::*** head), rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — add **`standing/StandingDB.cpp`**, **`StatisticMgr.cpp`**, etc., only when the next tail forces them.
 
 ## Hard project rules
 - Restoration first
