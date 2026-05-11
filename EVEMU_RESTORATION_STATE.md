@@ -201,7 +201,9 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 **Sixth compile-first probe (temporary; reverted):** Full **probe-five** set plus **`inventory/AttributeMap.cpp`**, **`inventory/ItemType.cpp`**. **Compile OK, link failed.** **`ItemData::ItemData(...)`** / **`AttributeMap::GetAttribute`** no longer appear at the head of the tail — probe six **collapsed** that wall. **First `undefined reference`** cluster (after a **`Client.cpp.o`** relocation warning): **`AccountService.cpp.o`** — **`EntityList::CorpNotify`**, **`EntityList`** ctor/dtor, **`CorporationDB::GetCorpName`**, **`GetDivisionName`**, **`EntityList::FindClientByCharID`**, **`CharacterDB::GetCorpTaxRate`**, **`GetCorpID`**. **Reverted** to 5-TU baseline.
 
-Next compile-first probe (seventh): keep the **full probe-six** TU set (probe five + **`AttributeMap.cpp`** + **`ItemType.cpp`**), add **`EntityList.cpp`** first (smallest hub for the new head), rebuild **`eve-test`**, capture first **`ld`** cluster, revert on failure — add **`CorporationDB.cpp`** / **`CharacterDB.cpp`** only if the new tail still demands them before **`EntityList`** is enough.
+**Seventh compile-first probe (temporary; reverted):** Full **probe-six** set plus **`EntityList.cpp`**. **Compile OK, link failed.** After the same **`Client.cpp.o`** relocation **warning** (not the first hard failure), **first `undefined reference`** cluster: **`AccountService.cpp.o`** — **`CorporationDB::GetCorpName`**, **`GetDivisionName`**, **`CharacterDB::GetCorpTaxRate`**, **`GetCorpID`** — probe seven **removed `EntityList::*` from the head** of the tail vs probe six. **Reverted** to 5-TU baseline.
+
+Next compile-first probe (eighth): keep the **full probe-seven** TU set, add **`corporation/CorporationDB.cpp`** and **`character/CharacterDB.cpp`** together (both appear in the new first cluster), rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure.
 
 ## Hard project rules
 - Restoration first
