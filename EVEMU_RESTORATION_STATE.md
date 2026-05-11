@@ -2,20 +2,20 @@
 
 ## RESTORATION SLICE RESULT (latest)
 
-**Slice:** Courier corp collateral — persisted **`acceptorCorpID`** + completion routing + session guard
+**Slice:** Courier corp completion — collateral + **reward** to persisted **`acceptorCorpID`** / division; session guard
 
-**Status:** PARTIAL — schema + server wired; **live smoke** (corp issuer reward + corp acceptor collateral success/fail + **corp-hop blocked**) still required for PASS
+**Status:** PARTIAL — server wired; **live smoke** (corp issuer debit, corp acceptor collateral + reward credit, fail path, **corp-hop blocked**) batched for end-of-sprint PASS
 
 **Evidence:**
 - Migration **`sql/migrations/20260510120000-ctrcontracts_acceptor_corp.sql`** adds **`ctrContracts.acceptorCorpID`** (default **0**).
 - **`AcceptContract` (courier):** persists **`acceptorCorpID`** next to **`acceptorWalletKey`** when **`acceptorForCorp`**, else **0**.
-- **`CompleteContract`:** SELECT loads **`acceptorCorpID`**; corp-collateral ledger legs (**`acceptorWalletKey != 0`**) use **`acceptorCorpID`** from the row (never session corp). **`ValidateCorpCourierAcceptSession`** enforces **`acceptorCorpID != 0`**, **`IsPlayerCorp`**, and **`call.client->GetCorporationID() == acceptorCorpID`** so a pilot who leaves the accepting corp cannot complete/fail for-corporation collateral contracts (blocks misrouting vs wrong corp while stopping unsupported corp-change flows).
+- **`CompleteContract`:** SELECT loads **`acceptorCorpID`**; corp-collateral ledger legs (**`acceptorWalletKey != 0`**) use **`acceptorCorpID`** from the row (never session corp). **`ValidateCorpCourierAcceptSession`** enforces **`acceptorCorpID != 0`**, **`IsPlayerCorp`**, and **`call.client->GetCorporationID() == acceptorCorpID`** when wallet key is set for corp-backed flow.
 - **`ContractUtils`** contract payload SELECT includes **`acceptorCorpID`** for listings/detail parity.
-- Courier **reward** remains **`TransferFunds(issuer → courier character)`** (issuer corp vs pilot reward unchanged — explicit product choice).
+- Courier **reward** on success: **`acceptorCorpID != 0 && acceptorWalletKey != 0`** → **`TransferFunds(issuerWalletID → acceptorCorpID, issuerMoneyKey → persisted division)`**; else personal courier → **`TransferFunds(issuer → courier character, … → Cash)`**.
 
 **Files changed:** `src/eve-server/contract/ContractProxy.cpp`, `src/eve-server/contract/ContractUtils.cpp`, `sql/migrations/20260510120000-ctrcontracts_acceptor_corp.sql`
 
-**Commands run:** `docker compose build server` (PASS — May 10, 2026)
+**Commands run:** `docker compose build server` (PASS — May 10, 2026; re-run after corp-reward routing edit)
 
 **Temporary diagnostics removed:** N/A (no new noisy logs)
 
@@ -99,7 +99,7 @@ Rotate to **next verification slice** (pick one — still needs live proof befor
 No blocker on insurance.
 
 ## Recent permanent patches (summary)
-- **ContractProxy.cpp / ContractUtils.cpp / migration `20260510120000`:** **AcceptContract** optional **`forCorp`** + **`SearchContracts`** guards + **`PyLong`** contract type; corp accept uses **pilot wallet division hangar + HangarCanTakeN**, **`acceptorMoneyKey`** on ISK legs; **courier** corp collateral **`corp → corpSCC`** + persisted **`acceptorWalletKey`** / **`acceptorCorpID`**; **courier `CompleteContract`** routes corp collateral via persisted corp id + session guard; issuer corp reward **`TransferFunds`** + **acceptorID** gate.
+- **ContractProxy.cpp / ContractUtils.cpp / migration `20260510120000`:** **AcceptContract** optional **`forCorp`** + **`SearchContracts`** guards + **`PyLong`** contract type; corp accept uses **pilot wallet division hangar + HangarCanTakeN**, **`acceptorMoneyKey`** on ISK legs; **courier** corp collateral **`corp → corpSCC`** + persisted **`acceptorWalletKey`** / **`acceptorCorpID`**; **courier `CompleteContract`** routes corp collateral + **reward** via persisted corp + division when accept-for-corp; session guard + **acceptorID** gate.
 - **docker-compose.yml:** **`RUN_WITH_GDB=${RUN_GDB:-FALSE}`** restores GDB toggle via **`RUN_GDB`**.
 - **InsuranceService.cpp:** hull-sized premium → platinum coverage; nearest-tier matching for nominal ratios; **`InsureShip`** overloads for **`PyInt`** / **`PyLong`** premium amounts (same logic as **`PyFloat`**).
 - **ShipDB / Ship.cpp / Damage.cpp:** insurance settlement from DB `ownerID`; abandoned-hull destruction path pays out.
@@ -111,7 +111,7 @@ No blocker on insurance.
 
 ## Known code gaps (not PASS until tested)
 - **ContractProxy.cpp:** item-exchange **acceptance** uses division hangar + wallet keys as above; issuer corp wallet division still assumes **`Cash` (1000)** pending schema; **still UNCHECKED** live for corp issuer ↔ corp acceptor paths.
-- **Courier (corp issuer + corp collateral accept):** **`acceptorCorpID`** + **`acceptorWalletKey`** persisted; **`CompleteContract`** uses row corp id for SCC/corp legs and rejects corp-hop completion — **still UNCHECKED** live; courier reward still credits **character** (policy unchanged).
+- **Courier (corp accept):** **`acceptorCorpID`** + **`acceptorWalletKey`** persisted; **`CompleteContract`** uses row corp id for SCC/corp collateral + **issuer → persisted corp division** reward when accept-for-corp; corp-hop blocked — **still UNCHECKED** live; personal courier reward still **character Cash**.
 - **Contracts surface:** `contractProxy` registers **CreateContract**, **AcceptContract**, **CompleteContract**, **SearchContracts**, listings, etc.; schema under `sql/migrations/*contract*.sql`. Treat as **PARTIAL implementation** until a full create→accept→complete live trace is green.
 - **Industry:** `RamProxyService` + related RAM pipeline present (`src/eve-server/manufacturing/`); **UNCHECKED** live job completion vs Crucible client expectations.
 - Large surface areas above remain **verification-dependent** — no substitute for targeted live tests.

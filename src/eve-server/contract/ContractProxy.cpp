@@ -939,18 +939,34 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
                     }
                 }
                 // Pay reward from issuer wallet — avoids spawning ISK without debiting the issuer.
+                // Corp-accepted courier: credit the same persisted corp + division as collateral (session already validated).
                 if (reward > 0) {
-                    AccountService::TransferFunds(
-                        issuerWalletID,
-                        call.client->GetCharacterID(),
-                        static_cast<double>(reward),
-                        "Courier contract reward",
-                        Journal::EntryType::ContractReward,
-                        contractID->value(),
-                        issuerMoneyKey,
-                        Account::KeyType::Cash,
-                        call.client
-                    );
+                    if (acceptorCorpIDPersisted != 0u && acceptorWalletKeyRaw != 0) {
+                        const uint16 acceptorRewardKey = static_cast<uint16>(acceptorWalletKeyRaw);
+                        AccountService::TransferFunds(
+                            issuerWalletID,
+                            acceptorCorpIDPersisted,
+                            static_cast<double>(reward),
+                            "Courier contract reward",
+                            Journal::EntryType::ContractReward,
+                            contractID->value(),
+                            issuerMoneyKey,
+                            acceptorRewardKey,
+                            call.client
+                        );
+                    } else {
+                        AccountService::TransferFunds(
+                            issuerWalletID,
+                            call.client->GetCharacterID(),
+                            static_cast<double>(reward),
+                            "Courier contract reward",
+                            Journal::EntryType::ContractReward,
+                            contractID->value(),
+                            issuerMoneyKey,
+                            Account::KeyType::Cash,
+                            call.client
+                        );
+                    }
                 }
 
                 // Then, we update the contract as Completed.
