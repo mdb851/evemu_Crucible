@@ -42,7 +42,8 @@ if [[ "$SKIP_UP" != true ]]; then
 fi
 
 db_sql() {
-  docker compose exec -T db mariadb -ueva -pevemu evemu "$@"
+  # Use "-u evemu" (with space). "-ueva" is parsed as user "eva" by the MariaDB client.
+  docker compose exec -T db mariadb -u evemu -pevemu evemu "$@"
 }
 
 echo "==> Waiting for MariaDB..."

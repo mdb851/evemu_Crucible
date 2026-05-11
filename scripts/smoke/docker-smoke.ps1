@@ -36,7 +36,7 @@ function Get-RepoRoot {
 
 function Invoke-DbSql {
     param([string] $Sql)
-    $out = @($Sql | docker compose exec -T db mariadb -ueva -pevemu evemu 2>&1)
+    $out = @($Sql | docker compose exec -T db mariadb -u evemu -pevemu evemu 2>&1)
     if ($LASTEXITCODE -ne 0) {
         throw "MariaDB command failed (exit $LASTEXITCODE): $($out -join "`n")"
     }
@@ -137,7 +137,7 @@ SELECT IF(
         foreach ($f in $run) {
             Write-Host "---- $f"
             try {
-                Get-Content -LiteralPath $f -Raw | docker compose exec -T db mariadb -ueva -pevemu evemu
+                Get-Content -LiteralPath $f -Raw | docker compose exec -T db mariadb -u evemu -pevemu evemu
             } catch {
                 Write-Warning "SQL file failed: $f — $($_.Exception.Message)"
             }

@@ -42,7 +42,7 @@ try {
             continue
         }
         Write-Host "==== $f"
-        Get-Content -LiteralPath $f -Raw | docker compose exec -T db mariadb -ueva -pevemu evemu
+        Get-Content -LiteralPath $f -Raw | docker compose exec -T db mariadb -u evemu -pevemu evemu
         if ($LASTEXITCODE -ne 0) {
             throw "mariadb failed on $f (exit $LASTEXITCODE)"
         }

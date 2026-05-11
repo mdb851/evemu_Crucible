@@ -84,7 +84,7 @@ Or run SQL directly:
 
 ```powershell
 Get-Content .\scripts\smoke\sql\contracts_courier_assertions.sql -Raw |
-  docker compose exec -T db mariadb -ueva -pevemu evemu
+  docker compose exec -T db mariadb -u evemu -pevemu evemu
 ```
 
 ## Tier C — observer / bubble work
