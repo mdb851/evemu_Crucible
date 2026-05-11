@@ -115,9 +115,16 @@ PaperDollService::PaperDollService() :
 //17:35:32 L PaperDollService::Handle_GetPaperDollData(): size=1
 PyResult PaperDollService::GetPaperDollData(PyCallArgs &call, PyInt* characterID) {
     call.Dump(PLAYER__CALL_DUMP);
-    // this is called when viewing full body of a character.
+    // Full-body view (show info, etc.): same payload shape as GetMyPaperDollData, for the target char.
+    const uint32 cid = characterID->value();
 
-    return m_db.GetPaperDollAvatarColors(characterID->value());
+    PyDict* args = new PyDict;
+    args->SetItemString("colors", m_db.GetPaperDollAvatarColors(cid));
+    args->SetItemString("modifiers", m_db.GetPaperDollAvatarModifiers(cid));
+    args->SetItemString("appearance", m_db.GetPaperDollAvatar(cid));
+    args->SetItemString("sculpts", m_db.GetPaperDollAvatarSculpts(cid));
+
+    return new PyObject("util.KeyVal", args);
 }
 
 PyResult PaperDollService::ConvertAndSavePaperDoll(PyCallArgs &call) {
