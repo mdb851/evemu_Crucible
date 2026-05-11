@@ -38,37 +38,63 @@
 #include "contract/ContractUtils.h"
 #include "account/AccountService.h"
 #include "account/AccountDB.h"
+#include "EVE_Wallet.h"
 
 namespace {
 
-/** Locate a stack at station owned by contributor with enough qty; corp acceptance searches all corp hangar divisions. */
-int FindRequestStackInStationHangars(Inventory* inv, uint16 typeID, uint32 qty, uint32 contributorOwnerID, bool acceptorForCorp)
+bool CorpWalletKeyToHangarFlag(int32 walletDivKey, EVEItemFlags& outFlag)
 {
-    static const EVEItemFlags corpHangarFlags[] = {
-        flagHangar,
-        flagCorpHangar2,
-        flagCorpHangar3,
-        flagCorpHangar4,
-        flagCorpHangar5,
-        flagCorpHangar6,
-        flagCorpHangar7
-    };
+    switch (walletDivKey) {
+        case Account::KeyType::Cash:  outFlag = flagHangar; break;
+        case Account::KeyType::Cash2: outFlag = flagCorpHangar2; break;
+        case Account::KeyType::Cash3: outFlag = flagCorpHangar3; break;
+        case Account::KeyType::Cash4: outFlag = flagCorpHangar4; break;
+        case Account::KeyType::Cash5: outFlag = flagCorpHangar5; break;
+        case Account::KeyType::Cash6: outFlag = flagCorpHangar6; break;
+        case Account::KeyType::Cash7: outFlag = flagCorpHangar7; break;
+        default: return false;
+    }
+    return true;
+}
 
+bool CorpHangarTakeAllowed(Client* client, EVEItemFlags fl)
+{
+    const int64 roles = client->GetCorpRole();
+    switch (fl) {
+        case flagHangar: return (roles & Corp::Role::HangarCanTake1) != 0;
+        case flagCorpHangar2: return (roles & Corp::Role::HangarCanTake2) != 0;
+        case flagCorpHangar3: return (roles & Corp::Role::HangarCanTake3) != 0;
+        case flagCorpHangar4: return (roles & Corp::Role::HangarCanTake4) != 0;
+        case flagCorpHangar5: return (roles & Corp::Role::HangarCanTake5) != 0;
+        case flagCorpHangar6: return (roles & Corp::Role::HangarCanTake6) != 0;
+        case flagCorpHangar7: return (roles & Corp::Role::HangarCanTake7) != 0;
+        default: return false;
+    }
+}
+
+/** Locate a stack at station owned by contributor with enough qty. Corp acceptance uses the pilot's active wallet division hangar only and requires HangarCanTakeN. */
+int FindRequestStackInStationHangars(Inventory* inv, uint16 typeID, uint32 qty, uint32 contributorOwnerID, bool acceptorForCorp, Client* client)
+{
     if (acceptorForCorp) {
-        for (EVEItemFlags fl : corpHangarFlags) {
-            std::vector<InventoryItemRef> itemVec;
-            inv->GetItemsByFlag(fl, itemVec);
-            for (const auto& cur : itemVec)
-                if (cur->ownerID() == contributorOwnerID && cur->typeID() == typeID && cur->quantity() >= qty)
-                    return cur->itemID();
-        }
-    } else {
+        if (client == nullptr)
+            return 0;
+        EVEItemFlags fl = flagHangar;
+        if (!CorpWalletKeyToHangarFlag(client->GetCorpAccountKey(), fl))
+            return 0;
+        if (!CorpHangarTakeAllowed(client, fl))
+            return 0;
         std::vector<InventoryItemRef> itemVec;
-        inv->GetItemsByFlag(flagHangar, itemVec);
+        inv->GetItemsByFlag(fl, itemVec);
         for (const auto& cur : itemVec)
             if (cur->ownerID() == contributorOwnerID && cur->typeID() == typeID && cur->quantity() >= qty)
                 return cur->itemID();
+        return 0;
     }
+    std::vector<InventoryItemRef> itemVec;
+    inv->GetItemsByFlag(flagHangar, itemVec);
+    for (const auto& cur : itemVec)
+        if (cur->ownerID() == contributorOwnerID && cur->typeID() == typeID && cur->quantity() >= qty)
+            return cur->itemID();
     return 0;
 }
 
@@ -110,9 +136,31 @@ ContractProxy::ContractProxy () :
 }
 
 PyResult ContractProxy::SearchContracts(PyCallArgs &call) {
-    // We will not proceed, if contractType is not specified
-    if (!call.byname.find("contractType")->second->IsNone()) {
-        int contractType = call.byname.find("contractType")->second->AsInt()->value();
+    auto namedRep = [&call](const char* key) -> PyRep* {
+        auto it = call.byname.find(key);
+        return it != call.byname.end() ? it->second : nullptr;
+    };
+    auto namedPresentNotNone = [&namedRep](const char* key) -> bool {
+        PyRep* r = namedRep(key);
+        return r != nullptr && !r->IsNone();
+    };
+
+    // We will not proceed, if contractType is not specified (missing key or None).
+    if (!namedPresentNotNone("contractType")) {
+        codelog(SERVICE__ERROR, "%s: ContractType was not specified. Aborting search", GetName());
+        return nullptr;
+    }
+
+    PyRep* contractTypeRep = namedRep("contractType");
+    int contractType = 0;
+    if (contractTypeRep != nullptr && contractTypeRep->IsInt()) {
+        contractType = contractTypeRep->AsInt()->value();
+    } else if (contractTypeRep != nullptr && contractTypeRep->IsLong()) {
+        contractType = static_cast<int>(contractTypeRep->AsLong()->value());
+    } else {
+        codelog(SERVICE__ERROR, "%s: ContractType must be int or long. Aborting search", GetName());
+        return nullptr;
+    }
 
         /**
          * We're using sort of query constructor here - if request have certain value specified, we add it as another AND block.
@@ -127,8 +175,8 @@ PyResult ContractProxy::SearchContracts(PyCallArgs &call) {
                             "WHERE cC.contractType IN " + std::string(contractType == 10 ? "(1,2)" : "(" + std::to_string(contractType) + ")");
                                                          // Type 10 is "All" and "Exclude WTB", for some reason. We'll assume it's "All", lol
 
-        if (!call.byname.find("itemTypes")->second->IsNone()) {
-            PyList* itemTypes = call.byname.find("itemTypes")->second->AsObjectEx()->header()->AsTuple()->GetItem(1)->AsTuple()->GetItem(0)->AsList();
+        if (namedPresentNotNone("itemTypes")) {
+            PyList* itemTypes = namedRep("itemTypes")->AsObjectEx()->header()->AsTuple()->GetItem(1)->AsTuple()->GetItem(0)->AsList();
             std::string types;
             for (auto index = 0; index < itemTypes->size(); index++) {
                 types.append(std::to_string(itemTypes->GetItem(index)->AsInt()->value()));
@@ -142,26 +190,26 @@ PyResult ContractProxy::SearchContracts(PyCallArgs &call) {
             }
         }
 
-        if (!call.byname.find("itemGroupID")->second->IsNone()) {
-            query.append(" AND iG.groupID = " + std::to_string(call.byname.find("itemGroupID")->second->AsInt()->value()));
+        if (namedPresentNotNone("itemGroupID")) {
+            query.append(" AND iG.groupID = " + std::to_string(namedRep("itemGroupID")->AsInt()->value()));
         }
-        if (!call.byname.find("itemCategoryID")->second->IsNone()) {
-            query.append(" AND iC.categoryID = " + std::to_string(call.byname.find("itemCategoryID")->second->AsInt()->value()));
+        if (namedPresentNotNone("itemCategoryID")) {
+            query.append(" AND iC.categoryID = " + std::to_string(namedRep("itemCategoryID")->AsInt()->value()));
         }
-        if (!call.byname.find("minPrice")->second->IsNone()) {
-            query.append(" AND cC.price >= " + std::to_string(call.byname.find("minPrice")->second->AsInt()->value()));
+        if (namedPresentNotNone("minPrice")) {
+            query.append(" AND cC.price >= " + std::to_string(namedRep("minPrice")->AsInt()->value()));
         }
-        if (!call.byname.find("maxPrice")->second->IsNone()) {
-            query.append(" AND cC.price <= " + std::to_string(call.byname.find("maxPrice")->second->AsInt()->value()));
+        if (namedPresentNotNone("maxPrice")) {
+            query.append(" AND cC.price <= " + std::to_string(namedRep("maxPrice")->AsInt()->value()));
         }
-        if (!call.byname.find("minReward")->second->IsNone()) {
-            query.append(" AND cC.reward >= " + std::to_string(call.byname.find("minReward")->second->AsInt()->value()));
+        if (namedPresentNotNone("minReward")) {
+            query.append(" AND cC.reward >= " + std::to_string(namedRep("minReward")->AsInt()->value()));
         }
-        if (!call.byname.find("maxReward")->second->IsNone()) {
-            query.append(" AND cC.reward <= " + std::to_string(call.byname.find("maxReward")->second->AsInt()->value()));
+        if (namedPresentNotNone("maxReward")) {
+            query.append(" AND cC.reward <= " + std::to_string(namedRep("maxReward")->AsInt()->value()));
         }
-        if (!call.byname.find("availability")->second->IsNone()) {
-            int availability = call.byname.find("availability")->second->AsInt()->value();
+        if (namedPresentNotNone("availability")) {
+            int availability = namedRep("availability")->AsInt()->value();
             if (availability == 0) {
                 // Public contracts
                 query.append(" AND cC.isPrivate = 0");
@@ -174,8 +222,8 @@ PyResult ContractProxy::SearchContracts(PyCallArgs &call) {
             }
         }
         // According to what i had during testing, locationID can only be system, constellation or region. Given that we only store system and region ID, we use OR clause for these
-        if (!call.byname.find("locationID")->second->IsNone()) {
-            int locationId = call.byname.find("locationID")->second->AsInt()->value();
+        if (namedPresentNotNone("locationID")) {
+            int locationId = namedRep("locationID")->AsInt()->value();
             if (IsSolarSystemID(locationId)) {
                 // Solar system range
                 query.append(" AND cC.startSolarSystemID = " + std::to_string(locationId));
@@ -185,8 +233,8 @@ PyResult ContractProxy::SearchContracts(PyCallArgs &call) {
             }
         }
         // Same applies to endLocationID - it uses the same search::QuickQuery() call to get it
-        if (!call.byname.find("endLocationID")->second->IsNone()) {
-            int locationId = call.byname.find("endLocationID")->second->AsInt()->value();
+        if (namedPresentNotNone("endLocationID")) {
+            int locationId = namedRep("endLocationID")->AsInt()->value();
             if (IsSolarSystemID(locationId)) {
                 // Solar system range
                 query.append(" AND cC.endSolarSystemID = " + std::to_string(locationId));
@@ -196,8 +244,8 @@ PyResult ContractProxy::SearchContracts(PyCallArgs &call) {
             }
         }
         // Once again, issuer can be either a character or a corporation. We use separate filters depending on value
-        if (!call.byname.find("issuerID")->second->IsNone()) {
-            int issuerId = call.byname.find("issuerID")->second->AsInt()->value();
+        if (namedPresentNotNone("issuerID")) {
+            int issuerId = namedRep("issuerID")->AsInt()->value();
             if (IsCorp(issuerId)) {
                 // Corporation case
                 query.append(" AND cC.issuerCorpID = " + std::to_string(issuerId) + " AND cC.forCorp = true");
@@ -235,11 +283,7 @@ PyResult ContractProxy::SearchContracts(PyCallArgs &call) {
         response->SetItemString("searchTime", new PyInt(153));  // Since search time is of no relevance to the client, we simply hard-code it
         response->SetItemString("maxResults", new PyInt(1000)); // Same here - we do not limit the list of contracts queried, so we leave this value hard-coded
 
-        return new PyObject("util.KeyVal", response);
-    } else {
-        codelog(SERVICE__ERROR, "%s: ContractType was not specified. Aborting search", GetName());
-        return nullptr;
-    }
+    return new PyObject("util.KeyVal", response);
 }
 
 PyResult ContractProxy::CreateContract(PyCallArgs &call,
@@ -518,7 +562,8 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID) {
 }
 
 PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std::optional<PyBool*> acceptorForCorpArg) {
-    const bool acceptorForCorp = acceptorForCorpArg.has_value() && acceptorForCorpArg.value()->value();
+    PyBool* const acceptorForCorpBool = acceptorForCorpArg.has_value() ? acceptorForCorpArg.value() : nullptr;
+    const bool acceptorForCorp = acceptorForCorpBool != nullptr && acceptorForCorpBool->value();
 
     DBQueryResult res;
     if (!sDatabase.RunQuery(res,
@@ -549,6 +594,9 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
 
     const uint32 issuerWalletID = issuerForCorp ? issuerCorpID : static_cast<uint32>(issuerID);
     const uint32 acceptorItemOwnerID = acceptorForCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
+    // Issuer division not persisted on ctrContracts — matches balance probes above (corp issuer division 1 / Cash).
+    const uint16 issuerMoneyKey = Account::KeyType::Cash;
+    const uint16 acceptorMoneyKey = acceptorForCorp ? static_cast<uint16>(call.client->GetCorpAccountKey()) : Account::KeyType::Cash;
 
     if (status == 0) {
         // We can only accept outstanding contracts. If it's not - we ignore the call.
@@ -568,7 +616,7 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                 bool iskRequirementMet(true), rewardRequirementMet(true), requestedItemsRequirementsMet(true);
                 if (price > 0) {
                     if (acceptorForCorp) {
-                        if (AccountDB::GetCorpBalance(call.client->GetCorporationID(), Account::KeyType::Cash) < price)
+                        if (AccountDB::GetCorpBalance(call.client->GetCorporationID(), acceptorMoneyKey) < price)
                             iskRequirementMet = false;
                     } else if (call.client->GetBalance() < price) {
                         iskRequirementMet = false;
@@ -584,7 +632,7 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                 }
                 if (!requestedItems.empty()) {
                     for (const auto& entry : requestedItems) {
-                        if (FindRequestStackInStationHangars(stationInv, entry.first, entry.second, acceptorItemOwnerID, acceptorForCorp) == 0)
+                        if (FindRequestStackInStationHangars(stationInv, entry.first, entry.second, acceptorItemOwnerID, acceptorForCorp, acceptorForCorp ? call.client : nullptr) == 0)
                             requestedItemsRequirementsMet = false;
                     }
                 }
@@ -599,8 +647,8 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                                                       "Payment for accepted contract",
                                                       Journal::EntryType::ContractReward,
                                                       contractID->value(),
-                                                      Account::KeyType::Cash,
-                                                      Account::KeyType::Cash,
+                                                      issuerMoneyKey,
+                                                      acceptorMoneyKey,
                                                       call.client);
                     }
 
@@ -612,15 +660,15 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                                                       "Payment for accepted contract",
                                                       Journal::EntryType::ContractPrice,
                                                       contractID->value(),
-                                                      Account::KeyType::Cash,
-                                                      Account::KeyType::Cash,
+                                                      acceptorMoneyKey,
+                                                      issuerMoneyKey,
                                                       call.client);
                     }
 
                     // Then, we go for requested items
                     if (!requestedItems.empty()) {
                         for (auto entry : requestedItems) {
-                            int entityID = FindRequestStackInStationHangars(stationInv, entry.first, entry.second, acceptorItemOwnerID, acceptorForCorp);
+                            int entityID = FindRequestStackInStationHangars(stationInv, entry.first, entry.second, acceptorItemOwnerID, acceptorForCorp, acceptorForCorp ? call.client : nullptr);
                             if (stationInv->GetByID(entityID)->quantity() > entry.second) {
                                 // If located stack contains more than we need, we split it and transfer the required amount.
                                 stationInv->GetByID(entityID)->Split(entry.second)->ChangeOwner(issuerWalletID, true);
@@ -747,11 +795,13 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
 
 
 PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, PyInt* completionStatus) {
-    sLog.White( "ContractProxy::Handle_CompleteContract()", "size=%lu", call.tuple->size());
     call.Dump(SERVICE__CALL_DUMP);
 
     DBQueryResult res;
-    if (!sDatabase.RunQuery(res, "SELECT contractType, status, price, reward, collateral, volume, startStationID, endStationID, issuerID, forCorp, crateID FROM ctrContracts WHERE contractId = %u", contractID))
+    if (!sDatabase.RunQuery(res,
+                            "SELECT contractType, status, price, reward, collateral, volume, startStationID, endStationID, issuerID, issuerCorpID, forCorp, acceptorID, crateID, issuerWalletKey "
+                            "FROM ctrContracts WHERE contractId = %u",
+                            contractID))
     {
         codelog(DATABASE__ERROR, "Error in query: %s", res.error.c_str());
         return new PyBool(false);
@@ -761,23 +811,36 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
     }
     DBResultRow row;
     res.GetRow(row);
-    int contractType = row.GetInt(0);
-    int status = row.GetInt(1);
-    int reward = row.GetInt(3);
-    int collateral = row.GetInt(4);
-    int startStationID = row.GetInt(6);
-    int endStationID = row.GetInt(7);
-    int issuerID = row.GetInt(8);
-    bool forCorp = row.GetBool(9);
-    int crateID = row.GetInt(10);
+    const int contractType = row.GetInt(0);
+    const int status = row.GetInt(1);
+    const int reward = row.GetInt(3);
+    const int collateral = row.GetInt(4);
+    const int startStationID = row.GetInt(6);
+    const int endStationID = row.GetInt(7);
+    const int issuerID = row.GetInt(8);
+    const uint32 issuerCorpID = row.GetUInt(9);
+    const bool issuerForCorp = row.GetBool(10);
+    const uint32 acceptorCharID = row.GetUInt(11);
+    const int crateID = row.GetInt(12);
+    const int issuerWalletKeyRaw = row.GetInt(13);
+
+    const uint32 issuerWalletID = issuerForCorp ? issuerCorpID : static_cast<uint32>(issuerID);
+    const uint16 issuerMoneyKey = issuerWalletKeyRaw != 0 ? static_cast<uint16>(issuerWalletKeyRaw) : Account::KeyType::Cash;
+
+    (void)status;
+    (void)startStationID;
 
     int64 timestamp = int64(GetFileTimeNow());
     switch (completionStatus->value()) {
         case 4: {
-            // Complete
+            // Complete (courier delivery — validated via crate / end station)
             // First, we need to make sure that the container is indeed located in the end station
             if (call.client->GetStationID() != endStationID) {
                 call.client->SendNotifyMsg("You have to deliver the package to %s", sItemFactory.GetStationRef(endStationID)->name());
+                return new PyBool(false);
+            }
+            if (acceptorCharID != 0 && call.client->GetCharacterID() != acceptorCharID) {
+                call.client->SendNotifyMsg("You are not the courier assigned to this contract.");
                 return new PyBool(false);
             }
             // Then, we validate the presence of all expected items
@@ -795,20 +858,31 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
             }
 
             if (allItemsPresent) {
-                // Once checks have passed, we extract the items into contractor's inventory
+                // Once checks have passed, we extract the items into issuer inventory (character or corporation).
                 for (const auto& entry : expectedItems) {
                     InventoryItemRef item = sItemFactory.GetItemRef(entry.first);
-                    item->ChangeOwner(issuerID, true);
+                    item->ChangeOwner(issuerWalletID, true);
                     item->Move(endStationID, flagHangar, true);
                 }
                 // Plastic wrap seems to self-destruct after all the items are removed from it, so there's no need to delete it.
 
-                // Then, we return the collateral (if any) and pay the reward (if any)
+                // Return escrowed collateral to the courier (still modeled on character wallet from AcceptContract).
                 if (collateral > 0) {
                     call.client->AddBalance(collateral);
                 }
+                // Pay reward from issuer wallet — avoids spawning ISK without debiting the issuer.
                 if (reward > 0) {
-                    call.client->AddBalance(reward);
+                    AccountService::TransferFunds(
+                        issuerWalletID,
+                        call.client->GetCharacterID(),
+                        static_cast<double>(reward),
+                        "Courier contract reward",
+                        Journal::EntryType::ContractReward,
+                        contractID->value(),
+                        issuerMoneyKey,
+                        Account::KeyType::Cash,
+                        call.client
+                    );
                 }
 
                 // Then, we update the contract as Completed.
@@ -826,14 +900,27 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
             break;
         }
         case 7: {
-            // Fail
-            // We pay the collateral to issuer and update the contract as failed.
-            if (collateral > 0) {
-                // Since we've taken the collateral prior to it and left it "hanging in the air" we put it back into acceptor's wallet and then issue a transfer
-                call.client->AddBalance(collateral);
-                AccountService::TransferFunds(call.client->GetCharacterID(), issuerID, collateral, "Collateral payment for failed contract", Journal::EntryType::ContractCollateral, contractID->value());
+            // Fail — collateral flows to issuer (character or corp wallet division).
+            if (acceptorCharID != 0 && call.client->GetCharacterID() != acceptorCharID) {
+                call.client->SendNotifyMsg("You are not the courier assigned to this contract.");
+                return new PyBool(false);
             }
-            // Then, we update the contract as Афшдув.
+            if (collateral > 0) {
+                // Restore collateral line on courier wallet then transfer to issuer (matches historic two-step pattern).
+                call.client->AddBalance(collateral);
+                AccountService::TransferFunds(
+                    call.client->GetCharacterID(),
+                    issuerWalletID,
+                    static_cast<double>(collateral),
+                    "Collateral payment for failed contract",
+                    Journal::EntryType::ContractCollateral,
+                    contractID->value(),
+                    Account::KeyType::Cash,
+                    issuerMoneyKey,
+                    call.client
+                );
+            }
+            // Then, we update the contract as failed.
             DBerror err;
             if (!sDatabase.RunQuery(err,
                                     "UPDATE ctrContracts SET status = %u, dateCompleted = %lli WHERE contractId = %u",
@@ -844,7 +931,8 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
             break;
         }
         default:
-            // We do not expect anything else
+            codelog(SERVICE__ERROR, "CompleteContract: unsupported completionStatus=%i contractType=%i contractID=%u",
+                    completionStatus->value(), contractType, contractID->value());
             return new PyBool(false);
     }
 

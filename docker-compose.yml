@@ -18,7 +18,7 @@ services:
       - SEED_MARKET=${SEED_MARKET:-FALSE}
       - SEED_SATURATION=${SEED_SATURATION:-80}
       - SEED_REGIONS=${SEED_REGIONS:-Derelik,The Citadel,The Forge,Essence}
-      - RUN_WITH_GDB=FALSE
+      - RUN_WITH_GDB=${RUN_GDB:-FALSE}
     stdin_open: true
     tty: true
     cap_add:
