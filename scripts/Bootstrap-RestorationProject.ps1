@@ -29,7 +29,9 @@ param(
     [string] $Repo = "evemu_Crucible"
 )
 
-$ErrorActionPreference = "Stop"
+# gh prints duplicate-field notices to stderr; do not treat as terminating unless $StrictErrors is set.
+$StrictErrors = $false
+if (-not $StrictErrors) { $ErrorActionPreference = "Continue" } else { $ErrorActionPreference = "Stop" }
 $gh = Join-Path ${env:ProgramFiles} "GitHub CLI\gh.exe"
 if (-not (Test-Path $gh)) {
     Write-Error "GitHub CLI not found at $gh. Install with: winget install GitHub.cli"
@@ -49,21 +51,22 @@ $repoFull = "${Owner}/${Repo}"
 Write-Host "Linking project $ProjectNumber to repository $repoFull ..."
 & $gh project link $ProjectNumber --owner $Owner -R $repoFull
 
-Write-Host "Creating custom fields (ignore errors if they already exist) ..."
+Write-Host "Creating custom fields (skipping duplicates is OK) ..."
 $fieldDefs = @(
     @{ Name = "Priority"; Options = "High,Medium,Low" },
     @{ Name = "Slice"; Options = "PvP,Mining,Contracts,Industry,Scanning,CorpMarket,Other" },
     @{ Name = "Live status"; Options = "Unchecked,InProgress,Blocked,LivePASS" }
 )
 foreach ($fd in $fieldDefs) {
-    & $gh project field-create $ProjectNumber --owner $Owner --name $fd.Name --data-type SINGLE_SELECT --single-select-options $fd.Options 2>&1 | Out-Null
+    # Duplicate names emit GraphQL to stderr; suppress NativeCommandError noise.
+    $null = & $gh project field-create $ProjectNumber --owner $Owner --name $fd.Name --data-type SINGLE_SELECT --single-select-options $fd.Options 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  (skip or duplicate field): $($fd.Name)"
+        Write-Host "  (already exists or skipped): $($fd.Name)"
     }
 }
 
 Write-Host "Ensuring label 'restoration' exists ..."
-& $gh label create "restoration" --repo $repoFull --description "Crucible restoration / verification slice" --color "0E8A16" 2>&1 | Out-Null
+$null = & $gh label create "restoration" --repo $repoFull --description "Crucible restoration / verification slice" --color "0E8A16" 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  (label may already exist)"
 }
