@@ -2,29 +2,28 @@
 
 ## RESTORATION SLICE RESULT (latest)
 
-**Slice:** Courier **`CompleteContract`** — issuer corp wallet + reward accounting + courier authorization
+**Slice:** Courier corp collateral — persisted **`acceptorCorpID`** + completion routing + session guard
 
-**Status:** PARTIAL — logic corrected in server; **live courier corp issuer / reward debit still needs smoke**
+**Status:** PARTIAL — schema + server wired; **live smoke** (corp issuer reward + corp acceptor collateral success/fail + **corp-hop blocked**) still required for PASS
 
 **Evidence:**
-- **`CompleteContract`** SELECT now loads **`issuerCorpID`**, **`acceptorID`**, **`issuerWalletKey`** ( **`acceptorWalletKey`** omitted until corp-courier acceptance persists it ).
-- **Issuer ISK sink:** reward no longer uses **`AddBalance(reward)`** only (which credited courier without debiting issuer). Reward is **`TransferFunds(issuerWalletID → courier character, issuerMoneyKey → Cash)`**.
-- **Delivered goods:** **`ChangeOwner(issuerWalletID)`** with **`issuerWalletID = issuerForCorp ? issuerCorpID : issuerID`** (fixes corp issuer receiving corporation-owned cargo).
-- **Fail collateral:** **`TransferFunds(courier → issuerWalletID, …, issuerMoneyKey)`** instead of raw **`issuerID`** only.
-- **Authorization:** completion/fail reject when **`acceptorID`** is set and **`call.client`** is not that courier.
-- Removed unconditional **`sLog.White`** from **`CompleteContract`** entry.
+- Migration **`sql/migrations/20260510120000-ctrcontracts_acceptor_corp.sql`** adds **`ctrContracts.acceptorCorpID`** (default **0**).
+- **`AcceptContract` (courier):** persists **`acceptorCorpID`** next to **`acceptorWalletKey`** when **`acceptorForCorp`**, else **0**.
+- **`CompleteContract`:** SELECT loads **`acceptorCorpID`**; corp-collateral ledger legs (**`acceptorWalletKey != 0`**) use **`acceptorCorpID`** from the row (never session corp). **`ValidateCorpCourierAcceptSession`** enforces **`acceptorCorpID != 0`**, **`IsPlayerCorp`**, and **`call.client->GetCorporationID() == acceptorCorpID`** so a pilot who leaves the accepting corp cannot complete/fail for-corporation collateral contracts (blocks misrouting vs wrong corp while stopping unsupported corp-change flows).
+- **`ContractUtils`** contract payload SELECT includes **`acceptorCorpID`** for listings/detail parity.
+- Courier **reward** remains **`TransferFunds(issuer → courier character)`** (issuer corp vs pilot reward unchanged — explicit product choice).
 
-**Files changed:** `src/eve-server/contract/ContractProxy.cpp`
+**Files changed:** `src/eve-server/contract/ContractProxy.cpp`, `src/eve-server/contract/ContractUtils.cpp`, `sql/migrations/20260510120000-ctrcontracts_acceptor_corp.sql`
 
-**Commands run:** `docker compose build server`; `docker compose up -d server`
+**Commands run:** `docker compose build server` (PASS — May 10, 2026)
 
-**Temporary diagnostics removed:** YES (removed noisy White log line)
+**Temporary diagnostics removed:** N/A (no new noisy logs)
 
-**Client task required:** YES — complete courier contract with **corp issuer** (`forCorp`, **`issuerCorpID`**) + reward; verify issuer corp wallet debits and courier credits; fail path with collateral.
+**Client task required:** YES — baseline corp courier smoke **plus** accept-for-corp then change corporation before complete/fail → expect **blocked** with notify (session corp ≠ persisted **`acceptorCorpID`**).
 
-**Remaining risk:** Courier **`AcceptContract`** still escrows collateral on **character** **`AddBalance`** only — corp courier acceptance + **`acceptorWalletKey`** persistence not implemented; **`issuerWalletKey`** relies on **`ctrContracts`** / **`CreateContract`** population (defaults **0** → division **Cash**).
+**Remaining risk:** Legacy rows with **`acceptorWalletKey != 0`** and **`acceptorCorpID == 0`** (accepted before migration) are **rejected** at completion with a migration/recreate message; plastic wrap / cargo ownership stays **character** (courier pilot).
 
-**Next slice:** Corp-courier **`AcceptContract`** (collateral + **`acceptorWalletKey`**), or backlog PvP / mining.
+**Next slice:** Live verification matrix row for contracts, or backlog PvP / mining.
 
 ---
 
@@ -38,7 +37,7 @@
 | Corporation market (`PlaceCharOrder` / modify / cancel corp paths) | PARTIAL (live smoke pending) |
 | Contracts `SearchContracts` byname safety | PARTIAL (code; matrix unchanged) |
 | External review: corp accept hardening + `RUN_WITH_GDB` | PARTIAL |
-| Courier `CompleteContract` corp / reward parity | PARTIAL (this slice) |
+| Courier corp collateral + `acceptorWalletKey` + `acceptorCorpID` + `CompleteContract` routing | PARTIAL (this slice) |
 
 ---
 
@@ -100,7 +99,7 @@ Rotate to **next verification slice** (pick one — still needs live proof befor
 No blocker on insurance.
 
 ## Recent permanent patches (summary)
-- **ContractProxy.cpp:** **AcceptContract** optional **`forCorp`** + **`SearchContracts`** guards + **`PyLong`** contract type; corp accept uses **pilot wallet division hangar + HangarCanTakeN**, **`acceptorMoneyKey`** on ISK legs, safe optional **`PyBool`** handling; **courier `CompleteContract`** issuer corp + **`TransferFunds`** reward + **acceptorID** gate.
+- **ContractProxy.cpp / ContractUtils.cpp / migration `20260510120000`:** **AcceptContract** optional **`forCorp`** + **`SearchContracts`** guards + **`PyLong`** contract type; corp accept uses **pilot wallet division hangar + HangarCanTakeN**, **`acceptorMoneyKey`** on ISK legs; **courier** corp collateral **`corp → corpSCC`** + persisted **`acceptorWalletKey`** / **`acceptorCorpID`**; **courier `CompleteContract`** routes corp collateral via persisted corp id + session guard; issuer corp reward **`TransferFunds`** + **acceptorID** gate.
 - **docker-compose.yml:** **`RUN_WITH_GDB=${RUN_GDB:-FALSE}`** restores GDB toggle via **`RUN_GDB`**.
 - **InsuranceService.cpp:** hull-sized premium → platinum coverage; nearest-tier matching for nominal ratios; **`InsureShip`** overloads for **`PyInt`** / **`PyLong`** premium amounts (same logic as **`PyFloat`**).
 - **ShipDB / Ship.cpp / Damage.cpp:** insurance settlement from DB `ownerID`; abandoned-hull destruction path pays out.
@@ -112,12 +111,12 @@ No blocker on insurance.
 
 ## Known code gaps (not PASS until tested)
 - **ContractProxy.cpp:** item-exchange **acceptance** uses division hangar + wallet keys as above; issuer corp wallet division still assumes **`Cash` (1000)** pending schema; **still UNCHECKED** live for corp issuer ↔ corp acceptor paths.
-- **Courier `CompleteContract`:** issuer corp **`issuerWalletID` / `issuerMoneyKey`**, reward **`TransferFunds`**, fail collateral to issuer corp, **acceptorID** gate — **still UNCHECKED** live; corp-courier **accept** (corp collateral / **`acceptorWalletKey`**) still absent.
+- **Courier (corp issuer + corp collateral accept):** **`acceptorCorpID`** + **`acceptorWalletKey`** persisted; **`CompleteContract`** uses row corp id for SCC/corp legs and rejects corp-hop completion — **still UNCHECKED** live; courier reward still credits **character** (policy unchanged).
 - **Contracts surface:** `contractProxy` registers **CreateContract**, **AcceptContract**, **CompleteContract**, **SearchContracts**, listings, etc.; schema under `sql/migrations/*contract*.sql`. Treat as **PARTIAL implementation** until a full create→accept→complete live trace is green.
 - **Industry:** `RamProxyService` + related RAM pipeline present (`src/eve-server/manufacturing/`); **UNCHECKED** live job completion vs Crucible client expectations.
 - Large surface areas above remain **verification-dependent** — no substitute for targeted live tests.
 
-## Automated verification log (agent-run — May 11, 2026)
+## Automated verification log (agent-run — May 10, 2026)
 
 Executed **without** the Crucible game client (RPC-level contract flows still require client or a dedicated harness):
 
@@ -126,7 +125,7 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 | `docker compose build server` | PASS |
 | `docker compose config`: default **`RUN_WITH_GDB`** | **`"FALSE"`** |
 | Same with **`$env:RUN_GDB='TRUE'`** (PowerShell) then **`docker compose config`** | **`"TRUE"`** |
-| **`SHOW COLUMNS FROM ctrContracts`** incl. **`issuerCorpID`**, **`acceptorID`**, **`issuerWalletKey`** | PASS |
+| **`SHOW COLUMNS FROM ctrContracts`** incl. **`issuerCorpID`**, **`acceptorID`**, **`issuerWalletKey`**, **`acceptorCorpID`** (after **`20260510120000`** migrate) | PASS once migrated |
 | **`CompleteContract` SELECT** (full column list as in server code) vs MariaDB | Executes OK (empty set for nonexistent id) |
 | **`ctrContracts` / `ctrItems` row counts** | **0** — no pre-seeded contracts to drive **`CompleteContract`** without inserting a full station/item/courier fixture |
 | **`ctest --output-on-failure`** in **`docker build --target app-build`** image | **No tests found** — **`src/eve-test`** is **not** wired into root **`CMakeLists.txt`** `ADD_SUBDIRECTORY`, so **`eve-test`** is not built/installed in default Docker pipeline |

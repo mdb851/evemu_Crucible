@@ -33,7 +33,7 @@
 const std::string getContractQueryBase = "SELECT contractId as contractID, contractType as type, issuerID, issuerCorpID, forCorp, isPrivate as availability, "
                                "assigneeID, acceptorID, dateIssued, dateExpired, dateAccepted, numDays, dateCompleted, startStationID, startSolarSystemID, "
                                "startRegionID, endStationID, endSolarSystemID, endRegionID, price, reward, collateral, title, description, status, "
-                               "crateID, volume, issuerAllianceID, issuerWalletKey, acceptorWalletKey "
+                               "crateID, volume, issuerAllianceID, issuerWalletKey, acceptorWalletKey, acceptorCorpID "
                                "FROM ctrContracts ";
 const std::string getContractItemsQueryBase = "SELECT contractId as contractID, itemID, quantity, itemTypeID, inCrate, parentID, productivityLevel, materialLevel, isCopy as copy, "
                                     "licensedProductionRunsRemaining, damage, flagID "

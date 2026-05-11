@@ -98,6 +98,28 @@ int FindRequestStackInStationHangars(Inventory* inv, uint16 typeID, uint32 qty, 
     return 0;
 }
 
+/** Courier accepted-for-corp persists accepting corp + wallet division — ledger routing must use the corp row, and session corp must match. */
+bool ValidateCorpCourierAcceptSession(Client* client, int acceptorWalletKeyRaw, uint32 acceptorCorpIDPersisted)
+{
+    if (acceptorWalletKeyRaw == 0)
+        return true;
+    if (acceptorCorpIDPersisted == 0u) {
+        client->SendNotifyMsg(
+            "This courier contract is missing persisted corporation acceptance metadata. Apply pending SQL migrations or recreate the contract.");
+        return false;
+    }
+    if (!IsPlayerCorp(acceptorCorpIDPersisted)) {
+        client->SendNotifyMsg("Invalid accepting corporation recorded on this contract.");
+        return false;
+    }
+    if (client->GetCorporationID() != acceptorCorpIDPersisted) {
+        client->SendNotifyMsg(
+            "You must be in the same corporation that accepted this courier contract (for corporation collateral) to complete or fail it.");
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 ContractProxy::ContractProxy () :
@@ -713,14 +735,38 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
             case 3:
             {
                 // Courier contract
-                // First off, we validate if contract has a collateral. If yes - we check if player has enough ISK to pay. If not - we send a notification and quit
+                // Collateral: character wallets use AddBalance; corporate acceptance escrows via the corp ledger → SCC (persist acceptorWalletKey for completion symmetry).
+                const uint32 persistedAcceptorWalletKey = acceptorForCorp ? static_cast<uint32>(acceptorMoneyKey) : 0u;
+                const uint32 persistedAcceptorCorpID = acceptorForCorp ? call.client->GetCorporationID() : 0u;
+
                 if (collateral > 0) {
-                    if (call.client->GetBalance() < collateral) {
-                        call.client->SendNotifyMsg("You do not have enough ISK to pay collateral");
-                        return nullptr;
+                    if (acceptorForCorp) {
+                        if (!IsPlayerCorp(call.client->GetCorporationID())) {
+                            call.client->SendNotifyMsg("You must belong to a player corporation to accept a courier contract for your corporation.");
+                            return nullptr;
+                        }
+                        if (AccountDB::GetCorpBalance(call.client->GetCorporationID(), acceptorMoneyKey) < collateral) {
+                            call.client->SendNotifyMsg("Your corporation does not have enough ISK to pay collateral");
+                            return nullptr;
+                        }
+                        AccountService::TransferFunds(
+                            call.client->GetCorporationID(),
+                            corpSCC,
+                            static_cast<double>(collateral),
+                            "Courier contract collateral escrow",
+                            Journal::EntryType::ContractCollateral,
+                            contractID->value(),
+                            acceptorMoneyKey,
+                            Account::KeyType::Cash,
+                            call.client
+                        );
+                    } else {
+                        if (call.client->GetBalance() < collateral) {
+                            call.client->SendNotifyMsg("You do not have enough ISK to pay collateral");
+                            return nullptr;
+                        }
+                        call.client->AddBalance(-collateral);
                     }
-                    // If we have enough - we take it
-                    call.client->AddBalance(-collateral);
                 }
 
                 /**
@@ -760,8 +806,8 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                 // Finally, we update DB entry
                 DBerror err;
                 if (!sDatabase.RunQuery(err,
-                                        "UPDATE ctrContracts SET status = 1, dateAccepted = %lli, acceptorID = %u, crateID = %u WHERE contractId = %u",
-                                        timestamp, call.client->GetCharacterID(), plasticWrap->itemID(), contractID))
+                                        "UPDATE ctrContracts SET status = 1, dateAccepted = %lli, acceptorID = %u, crateID = %u, acceptorWalletKey = %u, acceptorCorpID = %u WHERE contractId = %u",
+                                        timestamp, call.client->GetCharacterID(), plasticWrap->itemID(), persistedAcceptorWalletKey, persistedAcceptorCorpID, contractID))
                 {
                     codelog(DATABASE__ERROR, "Failed to update contract : %s", err.c_str());
                 }
@@ -798,8 +844,11 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
     call.Dump(SERVICE__CALL_DUMP);
 
     DBQueryResult res;
+    // ctrContracts row layout (positional Get* below must stay in sync):
+    // 0 contractType, 1 status, 2 price, 3 reward, 4 collateral, 5 volume, 6 startStationID, 7 endStationID,
+    // 8 issuerID, 9 issuerCorpID, 10 forCorp, 11 acceptorID, 12 crateID, 13 acceptorWalletKey, 14 acceptorCorpID, 15 issuerWalletKey
     if (!sDatabase.RunQuery(res,
-                            "SELECT contractType, status, price, reward, collateral, volume, startStationID, endStationID, issuerID, issuerCorpID, forCorp, acceptorID, crateID, issuerWalletKey "
+                            "SELECT contractType, status, price, reward, collateral, volume, startStationID, endStationID, issuerID, issuerCorpID, forCorp, acceptorID, crateID, acceptorWalletKey, acceptorCorpID, issuerWalletKey "
                             "FROM ctrContracts WHERE contractId = %u",
                             contractID))
     {
@@ -822,7 +871,9 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
     const bool issuerForCorp = row.GetBool(10);
     const uint32 acceptorCharID = row.GetUInt(11);
     const int crateID = row.GetInt(12);
-    const int issuerWalletKeyRaw = row.GetInt(13);
+    const int acceptorWalletKeyRaw = row.GetInt(13);
+    const uint32 acceptorCorpIDPersisted = row.GetUInt(14);
+    const int issuerWalletKeyRaw = row.GetInt(15);
 
     const uint32 issuerWalletID = issuerForCorp ? issuerCorpID : static_cast<uint32>(issuerID);
     const uint16 issuerMoneyKey = issuerWalletKeyRaw != 0 ? static_cast<uint16>(issuerWalletKeyRaw) : Account::KeyType::Cash;
@@ -843,6 +894,8 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
                 call.client->SendNotifyMsg("You are not the courier assigned to this contract.");
                 return new PyBool(false);
             }
+            if (!ValidateCorpCourierAcceptSession(call.client, acceptorWalletKeyRaw, acceptorCorpIDPersisted))
+                return new PyBool(false);
             // Then, we validate the presence of all expected items
             std::map<int, int> expectedItems;
             ContractUtils::GetContractItemIDsAndQuantities(contractID->value(), &expectedItems);
@@ -866,9 +919,24 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
                 }
                 // Plastic wrap seems to self-destruct after all the items are removed from it, so there's no need to delete it.
 
-                // Return escrowed collateral to the courier (still modeled on character wallet from AcceptContract).
+                // Return escrowed collateral: pilot wallet (historic AddBalance) or corp ledger refund via SCC when acceptance persisted acceptorWalletKey.
                 if (collateral > 0) {
-                    call.client->AddBalance(collateral);
+                    if (acceptorWalletKeyRaw != 0) {
+                        const uint16 acceptorDivision = static_cast<uint16>(acceptorWalletKeyRaw);
+                        AccountService::TransferFunds(
+                            corpSCC,
+                            acceptorCorpIDPersisted,
+                            static_cast<double>(collateral),
+                            "Courier contract collateral return",
+                            Journal::EntryType::ContractCollateralRefund,
+                            contractID->value(),
+                            Account::KeyType::Cash,
+                            acceptorDivision,
+                            call.client
+                        );
+                    } else {
+                        call.client->AddBalance(collateral);
+                    }
                 }
                 // Pay reward from issuer wallet — avoids spawning ISK without debiting the issuer.
                 if (reward > 0) {
@@ -905,20 +973,47 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
                 call.client->SendNotifyMsg("You are not the courier assigned to this contract.");
                 return new PyBool(false);
             }
+            if (!ValidateCorpCourierAcceptSession(call.client, acceptorWalletKeyRaw, acceptorCorpIDPersisted))
+                return new PyBool(false);
             if (collateral > 0) {
-                // Restore collateral line on courier wallet then transfer to issuer (matches historic two-step pattern).
-                call.client->AddBalance(collateral);
-                AccountService::TransferFunds(
-                    call.client->GetCharacterID(),
-                    issuerWalletID,
-                    static_cast<double>(collateral),
-                    "Collateral payment for failed contract",
-                    Journal::EntryType::ContractCollateral,
-                    contractID->value(),
-                    Account::KeyType::Cash,
-                    issuerMoneyKey,
-                    call.client
-                );
+                if (acceptorWalletKeyRaw != 0) {
+                    const uint16 acceptorDivision = static_cast<uint16>(acceptorWalletKeyRaw);
+                    AccountService::TransferFunds(
+                        corpSCC,
+                        acceptorCorpIDPersisted,
+                        static_cast<double>(collateral),
+                        "Courier contract collateral release before forfeiture",
+                        Journal::EntryType::ContractCollateralRefund,
+                        contractID->value(),
+                        Account::KeyType::Cash,
+                        acceptorDivision,
+                        call.client
+                    );
+                    AccountService::TransferFunds(
+                        acceptorCorpIDPersisted,
+                        issuerWalletID,
+                        static_cast<double>(collateral),
+                        "Collateral payment for failed contract",
+                        Journal::EntryType::ContractCollateral,
+                        contractID->value(),
+                        acceptorDivision,
+                        issuerMoneyKey,
+                        call.client
+                    );
+                } else {
+                    call.client->AddBalance(collateral);
+                    AccountService::TransferFunds(
+                        call.client->GetCharacterID(),
+                        issuerWalletID,
+                        static_cast<double>(collateral),
+                        "Collateral payment for failed contract",
+                        Journal::EntryType::ContractCollateral,
+                        contractID->value(),
+                        Account::KeyType::Cash,
+                        issuerMoneyKey,
+                        call.client
+                    );
+                }
             }
             // Then, we update the contract as failed.
             DBerror err;
@@ -1042,6 +1137,9 @@ PyResult ContractProxy::GetMyExpiredContractList(PyCallArgs &call) {
                             [PyInt 3]
                           [PyTuple 2 items]
                             [PyString "acceptorWalletKey"]
+                            [PyInt 3]
+                          [PyTuple 2 items]
+                            [PyString "acceptorCorpID"]
                             [PyInt 3]
             [PyString "items"]
             [PyDict 0 kvp]
@@ -1270,6 +1368,9 @@ PyResult ContractProxy::GetContractListForOwner(PyCallArgs &call, PyInt* ownerID
                             [PyString "acceptorWalletKey"]
                             [PyInt 3]
                           [PyTuple 2 items]
+                            [PyString "acceptorCorpID"]
+                            [PyInt 3]
+                          [PyTuple 2 items]
                             [PyString "crateID"]
                             [PyInt 20]
                           [PyTuple 2 items]
@@ -1304,6 +1405,7 @@ PyResult ContractProxy::GetContractListForOwner(PyCallArgs &call, PyInt* ownerID
                 ["issuerAllianceID" => <0> [I4]]
                 ["issuerWalletKey" => <0> [I4]]
                 ["acceptorWalletKey" => <0> [I4]]
+                ["acceptorCorpID" => <0> [I4]]
                 ["crateID" => <1002309425092> [I8]]
                 ["contractID" => <41239648> [I4]]
             [PyString "items"]
