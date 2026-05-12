@@ -12,10 +12,12 @@
 - **`9f6ace9f`** — `fix: correct market order modify escrow/accounting direction` (`MarketProxyService::ModifyCharOrder`: DB old price, buy-only escrow delta, correct Cash/Escrow direction; no bogus sell escrow transfer).
 - **`c840814d`** — `fix: replace deprecated std::iterator in Buffer and zlib dest pointer constness` (`Buffer.h`, `Deflate.cpp`).
 - **`fc340077`** — `fix: allow corporation market PlaceCharOrder (remove stub deny)` — early `useCorp` return removed; corp escrow/fee paths below are now reachable (station office / role TODOs remain in-file comments).
+- **`6023a4ed`** — standalone **`docker-compose.isolated.yml`** (parallel **`evemu_isolated_*`** stack; host **26100**/**26101**).
+- **`bce8fe7b`** — corp **buy** **`ModifyCharOrder` / `CancelCharOrder`**: escrow legs use **`oInfo.ownerID` + `oInfo.accountKey`** when **`oInfo.isCorp`** (aligned with `PlaceCharOrder`); **owner-only** guard on modify/cancel.
 
-**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). **`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d`** — **PASS** (containers **Up**, server log: **EVEmu Server is Online**). Default `docker compose up -d` still conflicts when global names **`db`**/**`server`** or ports **26000**–**26001** are taken (unchanged; other stack untouched).
+**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). **`docker compose -f docker-compose.isolated.yml -p evemu_iso build server`** — **PASS** after **`bce8fe7b`**; **`docker compose … up -d --force-recreate server`** — **PASS** (log: **EVEmu Server is Online**). Default `docker compose up -d` still conflicts when global names **`db`**/**`server`** or ports **26000**–**26001** are taken (unchanged; other stack untouched).
 
-**Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction.
+**Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction, (4) **corp buy** modify/cancel → ISK moves on **corp division** from **`mktOrders.accountKey`**, not personal wallet.
 
 **Next slice:** Live client smoke on **26100** if default **26000** is owned (`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d`); contract item-select / market matrix / corp courier batch as prioritized.
 
@@ -57,7 +59,7 @@
 | Insurance purchase (`InsureShip` RPC + tiers) | PASS |
 | Insurance payout (code review) | PASS |
 | Market sell / modify / cancel (personal) | PASS (matrix — no change this session) |
-| Corporation market (`PlaceCharOrder` / modify / cancel corp paths) | PARTIAL (stub deny removed `fc340077`; live smoke pending) |
+| Corporation market (`PlaceCharOrder` / modify / cancel corp paths) | PARTIAL (`fc340077` stub deny removed; `bce8fe7b` corp buy modify/cancel wallet routing; live smoke pending) |
 | Contracts `SearchContracts` byname safety | PARTIAL (code; matrix unchanged) |
 | External review: corp accept hardening + `RUN_WITH_GDB` | PARTIAL |
 | Courier corp collateral + `acceptorWalletKey` + `acceptorCorpID` + `CompleteContract` routing | PARTIAL (this slice) |
