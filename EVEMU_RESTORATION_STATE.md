@@ -315,7 +315,11 @@ Next compile-first probe (fifty-second): keep the **full probe-fifty-one** TU se
 
 Next compile-first probe (fifty-seventh): keep the **full probe-fifty-six** carried TU set; add **`chat/LSCService.cpp`** only first — owns **`LSCService::CharacterLogin`**, **`SendServerMOTD`**, **`CreateSystemChannel`**, and related **`LSCService::*`** at the new head.
 
-**Autopilot session (May 11–12, 2026):** Ran probes **26–56** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe56_link_full.log`**.
+**Fifty-seventh compile-first probe (temporary; reverted):** Full **probe-fifty-six** set plus **`chat/LSCService.cpp`**. **Compile OK, link failed.** **`LSCService::CharacterLogin`**, **`SendServerMOTD`**, **`CreateSystemChannel`**, and related **`LSCService::*`** from **`Client`** / **`FleetService`** no longer head the tail — probe fifty-seven **cleared the LSC service head** at the front of the carried link. **First `undefined reference`** cluster: **`Client.cpp.o`** — **`ImageServer::url[abi:cxx11]()`** at the head, then **`ImageServer::ImageServer()`**, then **`SystemManager.cpp.o`** / **`SpawnMgr::Init()`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (fifty-eighth): keep the **full probe-fifty-seven** carried TU set; add **`imageserver/ImageServer.cpp`** only first — owns **`ImageServer::url`** and **`ImageServer::ImageServer()`** at the new head.
+
+**Autopilot session (May 11–12, 2026):** Ran probes **26–57** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe57_link_full.log`**.
 
 ## Hard project rules
 - Restoration first
