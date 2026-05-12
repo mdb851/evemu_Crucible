@@ -217,7 +217,9 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 **Fourteenth compile-first probe (temporary; reverted):** Full **probe-thirteen** set plus **`ConsoleCommands.cpp`**. **Compile OK, link failed.** **`ConsoleCommand::ConsoleCommand()`** no longer heads the tail — probe fourteen **cleared the console slice** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`Character.cpp.o`** (in **`Character::ProcessEffects`**) — **`FxDataMgr::GetTypeEffect`**, **`GetExpression`**, **`GetEffect`**, **`FxDataMgr::FxDataMgr()`**, **`FxProc::ParseExpression`**, **`FxProc::ApplyEffects`**, then **`ItemDB::GetItemData`**; **`EntityList.cpp.o`** subsystem pulls remain **downstream**. **Reverted** to 5-TU baseline.
 
-Next compile-first probe (fifteenth): keep the **full probe-fourteen** TU set; add **`effects/EffectsDataMgr.cpp`** first (owns **`FxDataMgr::*`** at the new head), rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — add **`effects/EffectsProcessor.cpp`** next if **`FxProc::*`** still leads before **`ItemDB`**.
+**Fifteenth compile-first probe (temporary; reverted):** Full **probe-fourteen** set plus **`effects/EffectsDataMgr.cpp`**. **Compile OK, link failed.** **`FxDataMgr::*`** symbols no longer head the tail — probe fifteen **cleared the FxDataMgr TU slice** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`Character.cpp.o`** (in **`Character::ProcessEffects`**) — **`FxProc::ParseExpression`**, **`FxProc::ApplyEffects`**, then **`ItemDB::GetItemData`**; **`EntityList.cpp.o`** pulls remain **downstream**. **Reverted** to 5-TU baseline.
+
+Next compile-first probe (sixteenth): keep the **full probe-fifteen** TU set; add **`effects/EffectsProcessor.cpp`** only, rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — add **`inventory/ItemDB.cpp`** next if **`ItemDB::GetItemData`** still leads before **`EntityList`** subsystem noise.
 
 ## Hard project rules
 - Restoration first
