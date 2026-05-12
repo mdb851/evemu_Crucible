@@ -580,14 +580,18 @@ PyResult ContractProxy::DeleteContract(PyCallArgs &call, PyInt* contractID) {
 
     bool issuerForCorp = false;
     {
-        DBQueryResult resForCorp;
-        if (sDatabase.RunQuery(resForCorp,
-                               "SELECT forCorp FROM ctrContracts WHERE contractId = %u",
+        DBQueryResult resIss;
+        if (!sDatabase.RunQuery(resIss,
+                               "SELECT forCorp, issuerID FROM ctrContracts WHERE contractId = %u",
                                contractID->value())
-            && resForCorp.GetRowCount() > 0) {
-            DBResultRow rfc;
-            resForCorp.GetRow(rfc);
-            issuerForCorp = rfc.GetBool(0);
+            || resIss.GetRowCount() == 0) {
+            return new PyBool(false);
+        }
+        DBResultRow rfc;
+        resIss.GetRow(rfc);
+        issuerForCorp = rfc.GetBool(0);
+        if (static_cast<uint32>(rfc.GetInt(1)) != call.client->GetCharacterID()) {
+            return new PyBool(false);
         }
     }
     const uint32 itemOwnerRestore = issuerForCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
