@@ -382,13 +382,25 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
 
     const uint32 issuerWalletKeyInsert = forCorp ? static_cast<uint32>(call.client->GetCorpAccountKey()) : 0u;
 
-    // Courier-specific step - if we have a reward, we'd want to take it in advance and store it "in heap" to block no-funds scam
+    // Courier reward: personal issuer pre-debits character wallet before the row exists (historic behavior).
+    // Corporation issuer: validate the listing division balance here; escrow corp → SCC after insert (pairs with CompleteContract paying from SCC).
     if (contractType->value() == 3 && reward->value() > 0) {
-        if (call.client->GetBalance() >= reward->value()) {
-            call.client->AddBalance(-reward->value());
+        if (forCorp) {
+            if (!IsPlayerCorp(call.client->GetCorporationID())) {
+                call.client->SendNotifyMsg("You must belong to a player corporation to create a courier contract for your corporation.");
+                return nullptr;
+            }
+            const uint16 divKey = static_cast<uint16>(issuerWalletKeyInsert);
+            if (AccountDB::GetCorpBalance(call.client->GetCorporationID(), divKey) < reward->value()) {
+                call.client->SendNotifyMsg("Your corporation does not have enough ISK to pay the reward");
+                return nullptr;
+            }
         } else {
-            call.client->SendNotifyMsg("You do not have enough ISK to pay the reward");
-            return nullptr;
+            if (call.client->GetBalance() < reward->value()) {
+                call.client->SendNotifyMsg("You do not have enough ISK to pay the reward");
+                return nullptr;
+            }
+            call.client->AddBalance(-static_cast<double>(reward->value()));
         }
     }
 
@@ -416,6 +428,21 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
     {
         codelog(DATABASE__ERROR, "Failed to insert new entity: %s", err.c_str());
         return nullptr;
+    }
+
+    if (contractType->value() == 3 && reward->value() > 0 && forCorp) {
+        const uint16 divKey = static_cast<uint16>(issuerWalletKeyInsert);
+        AccountService::TransferFunds(
+            call.client->GetCorporationID(),
+            corpSCC,
+            static_cast<double>(reward->value()),
+            "Courier contract reward escrow",
+            Journal::EntryType::ContractCollateral,
+            contractId,
+            divKey,
+            Account::KeyType::Cash,
+            call.client
+        );
     }
 
     /**
@@ -954,31 +981,33 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
                         call.client->AddBalance(collateral);
                     }
                 }
-                // Pay reward from issuer wallet — avoids spawning ISK without debiting the issuer.
-                // Corp-accepted courier: credit the same persisted corp + division as collateral (session already validated).
+                // Pay reward: personal issuer still debits issuer wallet at completion; corp issuer pays from SCC pool
+                // funded at create (corp division → SCC), matching corp collateral symmetry.
                 if (reward > 0) {
+                    const uint32 rewardFromID = issuerForCorp ? corpSCC : issuerWalletID;
+                    const uint16 rewardFromKey = issuerForCorp ? Account::KeyType::Cash : issuerMoneyKey;
                     if (acceptorCorpIDPersisted != 0u && acceptorWalletKeyRaw != 0) {
                         const uint16 acceptorRewardKey = static_cast<uint16>(acceptorWalletKeyRaw);
                         AccountService::TransferFunds(
-                            issuerWalletID,
+                            rewardFromID,
                             acceptorCorpIDPersisted,
                             static_cast<double>(reward),
                             "Courier contract reward",
                             Journal::EntryType::ContractReward,
                             contractID->value(),
-                            issuerMoneyKey,
+                            rewardFromKey,
                             acceptorRewardKey,
                             call.client
                         );
                     } else {
                         AccountService::TransferFunds(
-                            issuerWalletID,
+                            rewardFromID,
                             call.client->GetCharacterID(),
                             static_cast<double>(reward),
                             "Courier contract reward",
                             Journal::EntryType::ContractReward,
                             contractID->value(),
-                            issuerMoneyKey,
+                            rewardFromKey,
                             Account::KeyType::Cash,
                             call.client
                         );
