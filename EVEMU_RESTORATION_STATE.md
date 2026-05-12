@@ -219,7 +219,9 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 **Fifteenth compile-first probe (temporary; reverted):** Full **probe-fourteen** set plus **`effects/EffectsDataMgr.cpp`**. **Compile OK, link failed.** **`FxDataMgr::*`** symbols no longer head the tail — probe fifteen **cleared the FxDataMgr TU slice** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`Character.cpp.o`** (in **`Character::ProcessEffects`**) — **`FxProc::ParseExpression`**, **`FxProc::ApplyEffects`**, then **`ItemDB::GetItemData`**; **`EntityList.cpp.o`** pulls remain **downstream**. **Reverted** to 5-TU baseline.
 
-Next compile-first probe (sixteenth): keep the **full probe-fifteen** TU set; add **`effects/EffectsProcessor.cpp`** only, rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — add **`inventory/ItemDB.cpp`** next if **`ItemDB::GetItemData`** still leads before **`EntityList`** subsystem noise.
+**Sixteenth compile-first probe (temporary; reverted):** Full **probe-fifteen** set plus **`effects/EffectsProcessor.cpp`**. **Compile OK, link failed.** **`FxProc::ParseExpression`** / **`ApplyEffects`** no longer head the tail — probe sixteen **cleared the effects processor TU slice** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`ItemDB::GetItemData`** from **`Character::Load`**, **`InventoryItem::Load<Character>`**, **`InventoryItem::Load<Skill>`**; **`EntityList.cpp.o`** (**`ServiceDB`**, **`SystemManager`**, …) remains **downstream**. **Reverted** to 5-TU baseline.
+
+Next compile-first probe (seventeenth): keep the **full probe-sixteen** TU set; add **`inventory/ItemDB.cpp`** only, rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — then triage **`EntityList`** subsystem pulls (**`ServiceDB`**, **`SystemManager`**, …) only when that tail becomes the new head.
 
 ## Hard project rules
 - Restoration first
