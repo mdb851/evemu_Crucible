@@ -308,6 +308,9 @@ bool MarketMgr::ExecuteBuyOrder(Client* seller, uint32 orderID, InventoryItemRef
         return false;
     }
 
+    const uint32 buyOrderOwnerID = oInfo.ownerID;
+    const bool buyOrderIsCorpFromOrder = oInfo.isCorp;
+
     // get buyer id and determine if buyer is player, corp, or npc/bot
     bool isPlayer(false), isCorp(false), isTraderJoe(false), isTrader(false);
 
@@ -329,6 +332,18 @@ bool MarketMgr::ExecuteBuyOrder(Client* seller, uint32 orderID, InventoryItemRef
         seller->SendNotifyMsg("Your order cannot be processed at this time, please try again later.");
 
         return false;
+    }
+
+    if ((isPlayer || isCorp) && buyOrderOwnerID != 1) {
+        if (IsCharacterID(buyOrderOwnerID) || IsPlayerCorp(buyOrderOwnerID)) {
+            const uint32 sellerParty = useCorp ? seller->GetCorporationID() : seller->GetCharacterID();
+
+            if (sellerParty == buyOrderOwnerID && useCorp == buyOrderIsCorpFromOrder) {
+                seller->SendErrorMsg("You cannot fulfill your own buy order.");
+
+                return false;
+            }
+        }
     }
 
     // quantity status of seller's item vs buyer's order
@@ -576,6 +591,21 @@ void MarketMgr::ExecuteSellOrder(Client* buyer, uint32 orderID, uint32 sellQuant
 
     if (sellQuantity == oInfo.quantity) {
         orderConsumed = true;
+    }
+
+    const uint32 sellOrderOwnerID = oInfo.ownerID;
+    const bool sellOrderIsCorp = oInfo.isCorp;
+
+    const uint32 buyerParty = useCorp ? buyer->GetCorporationID() : buyer->GetCharacterID();
+
+    if (!sDataMgr.IsStation(sellOrderOwnerID)) {
+        if (IsCharacterID(sellOrderOwnerID) || IsPlayerCorp(sellOrderOwnerID)) {
+            if (buyerParty == sellOrderOwnerID && useCorp == sellOrderIsCorp) {
+                buyer->SendErrorMsg("You cannot buy your own order.");
+
+                return;
+            }
+        }
     }
 
     if (sDataMgr.IsStation(oInfo.ownerID)) {
