@@ -579,10 +579,16 @@ PyResult ContractProxy::DeleteContract(PyCallArgs &call, PyInt* contractID) {
     call.Dump(SERVICE__CALL_DUMP);
 
     bool issuerForCorp = false;
+    int contractType = 0;
+    int contractReward = 0;
+    int contractStatus = 0;
+    int issuerWalletKeyRaw = 0;
+    uint32 issuerCorpIDRow = 0;
     {
         DBQueryResult resIss;
         if (!sDatabase.RunQuery(resIss,
-                               "SELECT forCorp, issuerID FROM ctrContracts WHERE contractId = %u",
+                               "SELECT forCorp, issuerID, contractType, reward, status, issuerWalletKey, issuerCorpID "
+                               "FROM ctrContracts WHERE contractId = %u",
                                contractID->value())
             || resIss.GetRowCount() == 0) {
             return new PyBool(false);
@@ -593,8 +599,33 @@ PyResult ContractProxy::DeleteContract(PyCallArgs &call, PyInt* contractID) {
         if (static_cast<uint32>(rfc.GetInt(1)) != call.client->GetCharacterID()) {
             return new PyBool(false);
         }
+        contractType = rfc.GetInt(2);
+        contractReward = rfc.GetInt(3);
+        contractStatus = rfc.GetInt(4);
+        issuerWalletKeyRaw = rfc.GetInt(5);
+        issuerCorpIDRow = rfc.GetUInt(6);
     }
     const uint32 itemOwnerRestore = issuerForCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
+
+    // Outstanding courier: return reward — personal was debited at create; corp issuer funds were moved to SCC at create.
+    if (contractType == 3 && contractReward > 0 && contractStatus == 0) {
+        if (issuerForCorp) {
+            const uint16 issuerMoneyKey = issuerWalletKeyRaw != 0 ? static_cast<uint16>(issuerWalletKeyRaw) : Account::KeyType::Cash;
+            AccountService::TransferFunds(
+                corpSCC,
+                issuerCorpIDRow,
+                static_cast<double>(contractReward),
+                "Courier contract reward refund on delete",
+                Journal::EntryType::ContractCollateralRefund,
+                contractID->value(),
+                Account::KeyType::Cash,
+                issuerMoneyKey,
+                call.client
+            );
+        } else {
+            call.client->AddBalance(static_cast<double>(contractReward));
+        }
+    }
 
     // In order to return items back to the owner, we need a full list of entityID's to return. We gather them using utils function
     std::vector<int> entityIds;
