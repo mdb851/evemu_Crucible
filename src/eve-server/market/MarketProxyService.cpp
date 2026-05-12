@@ -27,6 +27,8 @@
 // this class isnt a singleton, but is instantiated once on server start.
 
 
+#include <cmath>
+
 #include "StaticDataMgr.h"
 #include "account/AccountService.h"
 #include "cache/ObjCacheService.h"
@@ -646,6 +648,12 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
 }
 
 PyResult MarketProxyService::ModifyCharOrder(PyCallArgs &call, PyInt* orderID, PyFloat* newPrice, PyBool* bid, PyInt* stationID, PyInt* solarSystemID, PyFloat* price, PyInt* range, PyInt* volRemaining, PyLong* issueDate) {
+    (void)bid;
+    (void)solarSystemID;
+    (void)price; // DB `oInfo.price` is authoritative for escrow delta, not client tuple field
+    (void)range;
+    (void)issueDate;
+
     // client coded to throw error if price > 9223372036854.0
     // we need to pull data from db for typeID and isCorp...
     Market::OrderInfo oInfo = Market::OrderInfo();
@@ -656,21 +664,44 @@ PyResult MarketProxyService::ModifyCharOrder(PyCallArgs &call, PyInt* orderID, P
 
     // there is no refund in broker fees.
 
-    // adjust balance for price change
-    float money = (price->value() - newPrice->value()) * volRemaining->value();
-    std::string reason = "DESC:  Altering Market Order #";
-    reason += std::to_string(orderID->value());
+    // Buy orders hold ISK in station escrow; sell orders do not (see PlaceCharOrder sell path).
+    // Escrow delta must use the DB price as the old price — the client `price` argument is not authoritative.
+    if (oInfo.isBuy) {
+        const double oldPrice = static_cast<double>(oInfo.price);
+        const double delta = (newPrice->value() - oldPrice) * static_cast<double>(volRemaining->value());
+        constexpr double kMinEscrowDelta = 0.01;
 
-    AccountService::TransferFunds(
-        call.client->GetCharID(),
-        stDataMgr.GetOwnerID(stationID->value()),
-        money,
-        reason.c_str(),
-        Journal::EntryType::MarketEscrow,
-        orderID->value(),
-        Account::KeyType::Cash,
-        Account::KeyType::Escrow
-    );
+        if (std::fabs(delta) >= kMinEscrowDelta) {
+            std::string reason = "DESC:  Altering Market Order #";
+            reason += std::to_string(orderID->value());
+
+            const uint32 stationOwnerID = stDataMgr.GetOwnerID(stationID->value());
+
+            if (delta > 0.0) {
+                AccountService::TransferFunds(
+                    call.client->GetCharID(),
+                    stationOwnerID,
+                    delta,
+                    reason.c_str(),
+                    Journal::EntryType::MarketEscrow,
+                    orderID->value(),
+                    Account::KeyType::Cash,
+                    Account::KeyType::Escrow
+                );
+            } else {
+                AccountService::TransferFunds(
+                    stationOwnerID,
+                    call.client->GetCharID(),
+                    -delta,
+                    reason.c_str(),
+                    Journal::EntryType::MarketEscrow,
+                    orderID->value(),
+                    Account::KeyType::Escrow,
+                    Account::KeyType::Cash
+                );
+            }
+        }
+    }
 
     if (!MarketDB::AlterOrderPrice(orderID->value(), newPrice->value())) {
         _log(MARKET__ERROR, "ModifyCharOrder - Failed to modify price for order #%i.", orderID->value());
