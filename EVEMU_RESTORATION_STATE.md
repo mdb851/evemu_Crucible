@@ -221,7 +221,9 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 **Sixteenth compile-first probe (temporary; reverted):** Full **probe-fifteen** set plus **`effects/EffectsProcessor.cpp`**. **Compile OK, link failed.** **`FxProc::ParseExpression`** / **`ApplyEffects`** no longer head the tail — probe sixteen **cleared the effects processor TU slice** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`ItemDB::GetItemData`** from **`Character::Load`**, **`InventoryItem::Load<Character>`**, **`InventoryItem::Load<Skill>`**; **`EntityList.cpp.o`** (**`ServiceDB`**, **`SystemManager`**, …) remains **downstream**. **Reverted** to 5-TU baseline.
 
-Next compile-first probe (seventeenth): keep the **full probe-sixteen** TU set; add **`inventory/ItemDB.cpp`** only, rebuild **`eve-test`**, first **`ld`** cluster only, revert on failure — then triage **`EntityList`** subsystem pulls (**`ServiceDB`**, **`SystemManager`**, …) only when that tail becomes the new head.
+**Seventeenth compile-first probe (temporary; reverted):** Full **probe-sixteen** set plus **`inventory/ItemDB.cpp`**. **Compile OK, link failed.** **`ItemDB::GetItemData`** from **`Character::Load`** / **`InventoryItem::Load<Character>`** / **`Load<Skill>`** no longer heads the tail — probe seventeen **cleared the ItemDB slice** at the front. **First `undefined reference`** cluster (same **`ShipSE`** relocation **warning** first): **`EntityList.cpp.o`** — **`ServiceDB::SetClientSeed()`** (**`EntityList::Initialize`**), then **`SystemManager::*`**, **`TargetManager::Process`**, **`CivilianMgr`**, **`BubbleManager`**, **`MissionDataMgr`**, **`MapDB`**, **`MarketMgr`**, **`WormholeMgr`**, **`MarketBotMgr`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (eighteenth): keep the **full probe-seventeen** TU set; add **`ServiceDB.cpp`** first if the new head still leads with **`ServiceDB::SetClientSeed`** (otherwise let the next **`ld`** tail pick the smallest TU — still **defer** bulk **`SystemManager` / `TargetManager`** companions until forced).
 
 ## Hard project rules
 - Restoration first
