@@ -4,7 +4,7 @@
 
 **Slice:** Baseline verify — contract `GetItemsInStation` crash guard, market self-buy block, market modify escrow direction, eve-core Buffer/Deflate compile hygiene
 
-**Status:** PARTIAL — all listed fixes **present on branch**; `docker compose build server` **PASS** at HEAD; **live** contract item-select / market self-buy / modify wallet matrix **not re-run** this session (no client harness here). Fresh `docker compose up -d` **failed** on this host: Docker reports container name **`/db`** already in use by another project (operator: `docker compose -p <unique> up -d`, or remove/rename the conflicting stack).
+**Status:** PARTIAL — all listed fixes **present on branch**; `docker compose build server` **PASS** at HEAD; **live** contract item-select / market self-buy / modify wallet matrix **not re-run** this session (no client harness here). **Isolated Docker stack** is **runnable** without touching the legacy `db`/`server` containers: use **`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d`** (host ports **26100** / **26101** → container **26000** / **26001**; containers **`evemu_isolated_db`** / **`evemu_isolated_server`**). Verified **May 12, 2026:** `evemu_isolated_server` **running**, logs show **"EVEmu Server is Online"** and main loop after first-boot SQL migrations.
 
 **Evidence (commits on `restoration/contract-accept-corp`):**
 - **`cf7dcd40`** — `fix: guard contract station item enumeration from null crash` (`ContractProxy::GetItemsInStation` tuple vs bound station id, null guards, hangar list owner filter).
@@ -13,11 +13,11 @@
 - **`c840814d`** — `fix: replace deprecated std::iterator in Buffer and zlib dest pointer constness` (`Buffer.h`, `Deflate.cpp`).
 - **`fc340077`** — `fix: allow corporation market PlaceCharOrder (remove stub deny)` — early `useCorp` return removed; corp escrow/fee paths below are now reachable (station office / role TODOs remain in-file comments).
 
-**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). Sampled `docker logs server` from an **existing** `server` container (market bot tick); new compose stack not started due to name conflict above.
+**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). **`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d`** — **PASS** (containers **Up**, server log: **EVEmu Server is Online**). Default `docker compose up -d` still conflicts when global names **`db`**/**`server`** or ports **26000**–**26001** are taken (unchanged; other stack untouched).
 
 **Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction.
 
-**Next slice:** Unblock compose project name **or** use isolated compose project; run client smoke above; then resume **corp courier** live PASS batch (prior slice below) if still highest value.
+**Next slice:** Live client smoke on **26100** if default **26000** is owned (`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d`); contract item-select / market matrix / corp courier batch as prioritized.
 
 ---
 
@@ -52,7 +52,8 @@
 
 | Slice | Status |
 |-------|--------|
-| Baseline verify: contract `GetItemsInStation` + market self-buy + market modify escrow + Buffer/Deflate | PARTIAL (build PASS; live smoke pending; compose name conflict noted) |
+| Docker isolated compose (`docker-compose.isolated.yml`, ports 26100/26101) | PASS (stack up; server online in logs) |
+| Baseline verify: contract `GetItemsInStation` + market self-buy + market modify escrow + Buffer/Deflate | PARTIAL (build PASS; isolated runtime PASS; default compose still conflicts if `db`/`server` taken; client live smoke pending) |
 | Insurance purchase (`InsureShip` RPC + tiers) | PASS |
 | Insurance payout (code review) | PASS |
 | Market sell / modify / cancel (personal) | PASS (matrix — no change this session) |
