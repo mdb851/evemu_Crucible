@@ -656,6 +656,16 @@ PyResult MarketProxyService::ModifyCharOrder(PyCallArgs &call, PyInt* orderID, P
         return nullptr;
     }
 
+    if (oInfo.isCorp) {
+        if (!IsPlayerCorp(oInfo.ownerID) || call.client->GetCorporationID() != oInfo.ownerID) {
+            call.client->SendErrorMsg("You cannot modify that order.");
+            return nullptr;
+        }
+    } else if (call.client->GetCharacterID() != oInfo.ownerID) {
+        call.client->SendErrorMsg("You cannot modify that order.");
+        return nullptr;
+    }
+
     // there is no refund in broker fees.
 
     // Buy orders hold ISK in station escrow; sell orders do not (see PlaceCharOrder sell path).
@@ -670,28 +680,33 @@ PyResult MarketProxyService::ModifyCharOrder(PyCallArgs &call, PyInt* orderID, P
             reason += std::to_string(orderID->value());
 
             const uint32 stationOwnerID = stDataMgr.GetOwnerID(stationID->value());
+            const uint32 buyerWalletID = oInfo.isCorp ? oInfo.ownerID : call.client->GetCharacterID();
+            const uint16 buyerCashKey = oInfo.isCorp ? static_cast<uint16>(oInfo.accountKey) : Account::KeyType::Cash;
+            Client* const corpClient = oInfo.isCorp ? call.client : nullptr;
 
             if (delta > 0.0) {
                 AccountService::TransferFunds(
-                    call.client->GetCharID(),
+                    buyerWalletID,
                     stationOwnerID,
                     delta,
                     reason.c_str(),
                     Journal::EntryType::MarketEscrow,
                     orderID->value(),
-                    Account::KeyType::Cash,
-                    Account::KeyType::Escrow
+                    buyerCashKey,
+                    Account::KeyType::Escrow,
+                    corpClient
                 );
             } else {
                 AccountService::TransferFunds(
                     stationOwnerID,
-                    call.client->GetCharID(),
+                    buyerWalletID,
                     -delta,
                     reason.c_str(),
                     Journal::EntryType::MarketEscrow,
                     orderID->value(),
                     Account::KeyType::Escrow,
-                    Account::KeyType::Cash
+                    buyerCashKey,
+                    corpClient
                 );
             }
         }
@@ -715,6 +730,16 @@ PyResult MarketProxyService::CancelCharOrder(PyCallArgs &call, PyInt* orderID, P
         return nullptr;
     }
 
+    if (oInfo.isCorp) {
+        if (!IsPlayerCorp(oInfo.ownerID) || call.client->GetCorporationID() != oInfo.ownerID) {
+            call.client->SendErrorMsg("You cannot cancel that order.");
+            return nullptr;
+        }
+    } else if (call.client->GetCharacterID() != oInfo.ownerID) {
+        call.client->SendErrorMsg("You cannot cancel that order.");
+        return nullptr;
+    }
+
     if (oInfo.isBuy) {
         // buy order only refunds escrow
         float money = oInfo.price * oInfo.quantity;
@@ -722,15 +747,20 @@ PyResult MarketProxyService::CancelCharOrder(PyCallArgs &call, PyInt* orderID, P
         std::string reason = "DESC:  Canceling Market Order #";
         reason += std::to_string(orderID->value());
 
+        const uint32 buyerWalletID = oInfo.isCorp ? oInfo.ownerID : call.client->GetCharacterID();
+        const uint16 buyerCashKey = oInfo.isCorp ? static_cast<uint16>(oInfo.accountKey) : Account::KeyType::Cash;
+        Client* const corpClient = oInfo.isCorp ? call.client : nullptr;
+
         AccountService::TransferFunds(
             stDataMgr.GetOwnerID(oInfo.stationID),
-            call.client->GetCharID(),
+            buyerWalletID,
             money,
             reason.c_str(),
             Journal::EntryType::MarketEscrow,
             orderID->value(),
             Account::KeyType::Escrow,
-            Account::KeyType::Cash
+            buyerCashKey,
+            corpClient
         );
     } else {
         ItemData idata(oInfo.typeID, ownerStation, locTemp, flagHangar, oInfo.quantity);
