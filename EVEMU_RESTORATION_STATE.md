@@ -11,8 +11,9 @@
 - **`bf6b0f24`** — `fix: block market self-buy settlement` (`MarketMgr::ExecuteSellOrder` / `ExecuteBuyOrder` owner vs buyer/seller wallet party).
 - **`9f6ace9f`** — `fix: correct market order modify escrow/accounting direction` (`MarketProxyService::ModifyCharOrder`: DB old price, buy-only escrow delta, correct Cash/Escrow direction; no bogus sell escrow transfer).
 - **`c840814d`** — `fix: replace deprecated std::iterator in Buffer and zlib dest pointer constness` (`Buffer.h`, `Deflate.cpp`).
+- **`fc340077`** — `fix: allow corporation market PlaceCharOrder (remove stub deny)` — early `useCorp` return removed; corp escrow/fee paths below are now reachable (station office / role TODOs remain in-file comments).
 
-**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026). Sampled `docker logs server` from an **existing** `server` container (market bot tick); new compose stack not started due to name conflict above.
+**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). Sampled `docker logs server` from an **existing** `server` container (market bot tick); new compose stack not started due to name conflict above.
 
 **Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction.
 
@@ -55,7 +56,7 @@
 | Insurance purchase (`InsureShip` RPC + tiers) | PASS |
 | Insurance payout (code review) | PASS |
 | Market sell / modify / cancel (personal) | PASS (matrix — no change this session) |
-| Corporation market (`PlaceCharOrder` / modify / cancel corp paths) | PARTIAL (live smoke pending) |
+| Corporation market (`PlaceCharOrder` / modify / cancel corp paths) | PARTIAL (stub deny removed `fc340077`; live smoke pending) |
 | Contracts `SearchContracts` byname safety | PARTIAL (code; matrix unchanged) |
 | External review: corp accept hardening + `RUN_WITH_GDB` | PARTIAL |
 | Courier corp collateral + `acceptorWalletKey` + `acceptorCorpID` + `CompleteContract` routing | PARTIAL (this slice) |
@@ -120,7 +121,7 @@ Document observed RPCs, notifications, and destiny updates during a re-customize
   - price modification PASS
   - order cancellation PASS
 - **corporation market (code restoration May 2026 — live smoke pending):**
-  - `PlaceCharOrder` corp flag enabled (removed blanket deny)
+  - `PlaceCharOrder` corp flag no longer stub-blocked (`fc340077`, May 2026)
   - corp buy/sell paths reuse existing broker fee + escrow logic
   - `ModifyCharOrder` / `CancelCharOrder` honor `isCorp` + `accountKey` / `ownerID`
   - corp sell requires item `ownerID` == pilot corporation
