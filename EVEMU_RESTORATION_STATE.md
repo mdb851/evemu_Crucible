@@ -247,6 +247,10 @@ Executed **without** the Crucible game client (RPC-level contract flows still re
 
 Next compile-first probe (twenty-ninth): keep the **full probe-twenty-eight** TU set; add **`agents/Agent.cpp`** only first — owns **`Agent::Agent`**, **`Agent::Load()`** (first symbol family in the new head cluster).
 
+**Twenty-ninth compile-first probe (temporary; reverted):** Full **probe-twenty-eight** set plus **`agents/Agent.cpp`**. **Compile OK, link failed.** Same leading **`Station.cpp.o`** / **`SystemEntity`** relocation **warning** (non-blocker). **`EntityList::GetAgent`** no longer emits **`Agent::Agent`** / **`Agent::Load`** — probe twenty-nine **cleared the agent head** from **`EntityList`**. **First `undefined reference`** cluster: **`Inventory.cpp.o`** in **`Inventory::GetItems`** — **`InventoryDB::GetItemContents(...)`** at the head, then **`SovereigntyDataMgr::GetSovereigntyData`**, **`SovereigntyDataMgr::SovereigntyDataMgr()`**, more **`InventoryDB::GetItemContents`**, **`StationDB::LoadOffices`**, **`SovereigntyDataMgr::~SovereigntyDataMgr()`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (thirtieth): keep the **full probe-twenty-nine** TU set; add **`inventory/InventoryDB.cpp`** only first — owns **`InventoryDB::GetItemContents`** (first symbol at the new head).
+
 ## Hard project rules
 - Restoration first
 - No solo customization during restoration
