@@ -619,15 +619,22 @@ void MarketMgr::ExecuteSellOrder(Client* buyer, uint32 orderID, uint32 sellQuant
     std::string reason = "DESC:  Buying market items in ";
     reason += stDataMgr.GetStationName(stationID).c_str();
 
+    const uint32 buyerWalletID = useCorp ? buyer->GetCorporationID() : buyer->GetCharacterID();
+    const uint16 buyerFromKey = useCorp ? buyer->GetCorpAccountKey() : Account::KeyType::Cash;
+    const uint16 sellerToKey = oInfo.isCorp ? static_cast<uint16>(oInfo.accountKey) : Account::KeyType::Cash;
+    Client* const xferClient = (useCorp || oInfo.isCorp) ? buyer : nullptr;
+
     // this will throw if funds are not available.
     AccountService::TransferFunds(
-        buyer->GetCharacterID(),
+        buyerWalletID,
         oInfo.ownerID,
         money,
         reason.c_str(),
         Journal::EntryType::MarketTransaction,
         orderID,
-        oInfo.accountKey
+        buyerFromKey,
+        sellerToKey,
+        xferClient
     );
 
     uint32 sellerCharacterID = 0;
@@ -676,7 +683,11 @@ void MarketMgr::ExecuteSellOrder(Client* buyer, uint32 orderID, uint32 sellQuant
     }
 
     // use the "owner change" packet to alert the buyer of the new item
-    iRef->Donate(buyer->GetCharacterID(), stationID, flagHangar, true);
+    if (useCorp) {
+        iRef->Donate(buyer->GetCorporationID(), stationID, flagCorpMarket, true);
+    } else {
+        iRef->Donate(buyer->GetCharacterID(), stationID, flagHangar, true);
+    }
 
     // add data to StatisticMgr
     sStatMgr.Add(Stat::iskMarket, money);
@@ -697,7 +708,7 @@ void MarketMgr::ExecuteSellOrder(Client* buyer, uint32 orderID, uint32 sellQuant
 
         InvalidateOrdersCache(oInfo.regionID, typeID);
 
-        SendOnOwnOrderChanged(seller, orderID, Market::Action::Expiry, useCorp, order);
+        SendOnOwnOrderChanged(seller, orderID, Market::Action::Expiry, oInfo.isCorp, order);
     } else {
         uint32 newQty(oInfo.quantity - sellQuantity);
 
@@ -709,13 +720,13 @@ void MarketMgr::ExecuteSellOrder(Client* buyer, uint32 orderID, uint32 sellQuant
         }
         InvalidateOrdersCache(oInfo.regionID, typeID);
 
-        SendOnOwnOrderChanged(seller, orderID, Market::Action::Modify, useCorp);
+        SendOnOwnOrderChanged(seller, orderID, Market::Action::Modify, oInfo.isCorp);
     }
 
     // record the transaction
     /** @todo for corp, implement accountKey  */
     Market::TxData data = Market::TxData();
-    data.accountKey     = Account::KeyType::Cash; // args.useCorp?accountKey: Account::KeyType::Cash;
+    data.accountKey     = useCorp ? buyer->GetCorpAccountKey() : Account::KeyType::Cash;
     data.isBuy          = Market::Type::Buy;
     data.isCorp         = useCorp;
     data.memberID       = buyer->GetCharacterID(); // TODO: change this to the corp member ID if useCorp is 1?
@@ -732,7 +743,7 @@ void MarketMgr::ExecuteSellOrder(Client* buyer, uint32 orderID, uint32 sellQuant
 
     // record the other side of the transaction
     data.isBuy          = Market::Type::Sell;
-    data.clientID       = buyer->GetCharacterID();
+    data.clientID       = useCorp ? buyer->GetCorporationID() : buyer->GetCharacterID();
     data.memberID       = oInfo.ownerID; // TODO: change this to the corp member ID if useCorp is 1?
 
     if (!MarketDB::RecordTransaction(data)) {
