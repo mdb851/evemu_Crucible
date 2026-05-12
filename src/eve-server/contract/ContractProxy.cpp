@@ -1111,6 +1111,20 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
                     );
                 }
             }
+            // Corp courier reward was escrowed issuer corp → SCC at create; return it on failed delivery.
+            if (contractType == 3 && reward > 0 && issuerForCorp) {
+                AccountService::TransferFunds(
+                    corpSCC,
+                    issuerWalletID,
+                    static_cast<double>(reward),
+                    "Courier contract reward refund on failure",
+                    Journal::EntryType::ContractCollateralRefund,
+                    contractID->value(),
+                    Account::KeyType::Cash,
+                    issuerMoneyKey,
+                    call.client
+                );
+            }
             // Then, we update the contract as failed.
             DBerror err;
             if (!sDatabase.RunQuery(err,
