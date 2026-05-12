@@ -26,6 +26,8 @@
 #ifndef __UTILS__BUFFER_H__INCL__
 #define __UTILS__BUFFER_H__INCL__
 
+#include <iterator>
+
 #include "utils/misc.h"
 #include "memory/SafeMem.h"
 
@@ -50,22 +52,16 @@ public:
      */
     template< typename T >
     class const_iterator
-    : public std::iterator< std::random_access_iterator_tag, T >
     {
-        /// Typedef for our base due to readibility.
-        typedef std::iterator< std::random_access_iterator_tag, T > _Base;
-
     public:
-        /// Typedef for iterator category.
-        typedef typename _Base::iterator_category iterator_category;
-        /// Typedef for value type.
-        typedef typename _Base::value_type        value_type;
-        /// Typedef for difference type.
-        typedef typename _Base::difference_type   difference_type;
-        /// Typedef for pointer.
-        typedef typename _Base::pointer           pointer;
-        /// Typedef for reference.
-        typedef typename _Base::reference         reference;
+        /// std::iterator is deprecated in C++17; spell out traits explicitly.
+        /// Note: `reference` matches legacy std::iterator<..., T> (T&) even for const_iterator;
+        /// operator* is still typed as const_reference.
+        typedef std::random_access_iterator_tag iterator_category;
+        typedef T                               value_type;
+        typedef std::ptrdiff_t                  difference_type;
+        typedef const T*                        pointer;
+        typedef T&                              reference;
 
         /// Typedef for const pointer.
         typedef const T* const_pointer;
@@ -243,7 +239,7 @@ public:
         /// Typedef for difference type.
         typedef typename _Base::difference_type   difference_type;
         /// Typedef for pointer.
-        typedef typename _Base::pointer           pointer;
+        typedef T*                                pointer;
         /// Typedef for const pointer.
         typedef typename _Base::const_pointer     const_pointer;
         /// Typedef for reference.

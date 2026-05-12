@@ -49,7 +49,7 @@ bool DeflateData( Buffer& data )
 
 bool DeflateData( const Buffer& input, Buffer& output )
 {
-    const Buffer::iterator<uint8> out = output.end<uint8>();
+    Buffer::iterator<uint8> out = output.end<uint8>();
 
     size_t outputSize = compressBound( input.size() );
     output.ResizeAt( out, outputSize );
@@ -80,7 +80,7 @@ bool InflateData( Buffer& data )
 
 bool InflateData( const Buffer& input, Buffer& output )
 {
-    const Buffer::iterator<uint8> out = output.end<uint8>();
+    Buffer::iterator<uint8> out = output.end<uint8>();
 
     size_t outputSize = 0;
     size_t sizeMultiplier = 0;
