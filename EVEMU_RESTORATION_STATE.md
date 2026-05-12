@@ -303,7 +303,11 @@ Next compile-first probe (fifty-first): keep the **full probe-fifty** TU set; ad
 
 Next compile-first probe (fifty-second): keep the **full probe-fifty-one** TU set; add **`LiveUpdateDB.cpp`** (repo root) only first — owns **`LiveUpdateDB::GenerateUpdates()`**.
 
-**Autopilot session (May 11–12, 2026):** Ran probes **26–51** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe51_link_full.log`**.
+**Fifty-second compile-first probe (temporary; reverted):** Full **probe-fifty-one** set plus **`LiveUpdateDB.cpp`**. **Compile OK, link failed.** **`LiveUpdateDB::GenerateUpdates()`** no longer heads the tail from **`Client::_VerifyFuncResult`** — probe fifty-two **cleared the live-update DB head** from **`Client`**. **First `undefined reference`** cluster: **`Client.cpp.o`** in **`Client::SelfChatMessage`** — **`LSCChannel::SendMessage(Client*, char const*, bool)`** at the head, then **`LSCChannel::LeaveChannel`**, **`TradeService::CancelTrade`**, **`StationDataMgr::*`**, **`Scan::ProcessScan`**, **`LSCService::*`**, **`ImageServer::*`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (fifty-third): keep the **full probe-fifty-two** TU set; add **`chat/LSCChannel.cpp`** only first — owns **`LSCChannel::SendMessage`**, **`LeaveChannel`**, and related **`LSCChannel::*`** at the new head.
+
+**Autopilot session (May 11–12, 2026):** Ran probes **26–52** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe52_link_full.log`**.
 
 ## Hard project rules
 - Restoration first
