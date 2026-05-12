@@ -335,7 +335,11 @@ Next compile-first probe (sixty-first): keep the **full probe-sixty** carried TU
 
 Next compile-first probe (sixty-second): keep the **full probe-sixty-one** carried TU set; add **`system/cosmicMgrs/AnomalyMgr.cpp`** only first — owns **`AnomalyMgr::Init`**, **`AnomalyMgr::AnomalyMgr`**, **`AnomalyMgr::Process`**, **`Close`**, **`AddSignal`**, **`RemoveSignal`**, and related **`AnomalyMgr::*`** at the new head.
 
-**Autopilot session (May 11–12, 2026):** Ran probes **26–61** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe61_link_full.log`**.
+**Sixty-second compile-first probe (temporary; reverted):** Full **probe-sixty-one** set plus **`system/cosmicMgrs/AnomalyMgr.cpp`**. **Compile OK, link failed.** **`AnomalyMgr::Init`**, **`AnomalyMgr::AnomalyMgr`**, **`AnomalyMgr::Process`**, **`Close`**, **`AddSignal`**, **`RemoveSignal`**, and related **`AnomalyMgr::*`** from **`SystemManager`** / **`WormholeMgr`** no longer head the tail — probe sixty-two **cleared the anomaly-mgr head** from the carried link. **First `undefined reference`** cluster: **`SystemManager.cpp.o`** in **`DynamicEntityFactory::BuildEntity`** — **`TowerSE::TowerSE(...)`** at the head, then **`ArraySE`**, **`DroneSE`**, **`NPC`**, **`BatterySE`**, **`WeaponSE`**, **`Sentry`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (sixty-third): keep the **full probe-sixty-two** carried TU set; add **`pos/Tower.cpp`** only first — defines **`TowerSE::TowerSE`** and adjacent **`TowerSE::*`** at the new head.
+
+**Autopilot session (May 11–12, 2026):** Ran probes **26–62** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe62_link_full.log`**.
 
 ## Hard project rules
 - Restoration first
