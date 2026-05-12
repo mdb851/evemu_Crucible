@@ -226,9 +226,12 @@ PyRep *MarketMgr::GetOldPriceHistory(uint32 regionID, uint32 typeID) {
     return result;
 }
 
-void MarketMgr::SendOnOwnOrderChanged(Client* pClient, uint32 orderID, uint8 action, bool isCorp/*false*/, PyRep* order/*nullptr*/) {
-    if (pClient == nullptr)
+void MarketMgr::SendOnOwnOrderChanged(Client* pClient, uint32 orderID, uint8 action, bool isCorp/*false*/, PyRep* order/*nullptr*/, uint32 corpNotifyIdOverride/*0*/) {
+    if (!isCorp && pClient == nullptr)
         return;
+    if (isCorp && corpNotifyIdOverride == 0 && pClient == nullptr)
+        return;
+
     Notify_OnOwnOrderChanged ooc;
     if (order != nullptr) {
         ooc.order = order;
@@ -252,7 +255,8 @@ void MarketMgr::SendOnOwnOrderChanged(Client* pClient, uint32 orderID, uint8 act
     PyTuple* tmp = ooc.Encode();
     // send journal blink and call 'self.RefreshOrders()' in client
     if (isCorp) {
-        sEntityList.CorpNotify(pClient->GetCorporationID(), 125 /*MarketOrder*/, "OnOwnOrderChanged", "*corpid&corprole", tmp);
+        const uint32 corpId = corpNotifyIdOverride != 0 ? corpNotifyIdOverride : pClient->GetCorporationID();
+        sEntityList.CorpNotify(corpId, 125 /*MarketOrder*/, "OnOwnOrderChanged", "*corpid&corprole", tmp);
     } else {
         pClient->SendNotification("OnOwnOrderChanged", "clientID", &tmp);
     }
@@ -461,6 +465,8 @@ bool MarketMgr::ExecuteBuyOrder(Client* seller, uint32 orderID, InventoryItemRef
         _log(MARKET__DEBUG, "ExecuteBuyOrder - Seller is Player: Price: %.2f, Tax: %.2f", money, tax);
     }
 
+    const uint32 sellerRecvID = useCorp ? seller->GetCorporationID() : seller->GetCharacterID();
+
     AccountService::TransferFunds (
         sellerWalletOwnerID,
         corpSCC,
@@ -481,25 +487,27 @@ bool MarketMgr::ExecuteBuyOrder(Client* seller, uint32 orderID, InventoryItemRef
         // give the money to the seller from the escrow acct at station
         AccountService::TransferFunds(
             stDataMgr.GetOwnerID(stationID),
-            seller->GetCharacterID(),
+            sellerRecvID,
             money,
             reason.c_str(),
             Journal::EntryType::MarketTransaction,
             orderID,
             Account::KeyType::Escrow,
-            accountKey
+            accountKey,
+            useCorp ? seller : nullptr
         );
     } else {
         // npc buyer. direct xfer to seller
         AccountService::TransferFunds(
             oInfo.ownerID,
-            seller->GetCharacterID(),
+            sellerRecvID,
             money,
             reason.c_str(),
             Journal::EntryType::MarketTransaction,
             orderID,
             Account::KeyType::Cash,
-            accountKey
+            accountKey,
+            useCorp ? seller : nullptr
         );
     }
 
@@ -546,8 +554,11 @@ bool MarketMgr::ExecuteBuyOrder(Client* seller, uint32 orderID, InventoryItemRef
 
         InvalidateOrdersCache(oInfo.regionID, typeID);
 
-        if (isPlayer or isCorp) {
-            SendOnOwnOrderChanged(seller, orderID, Market::Action::Modify, useCorp);
+        if (isPlayer) {
+            Client* const buyCli = sEntityList.FindClientByCharID(buyOrderOwnerID);
+            SendOnOwnOrderChanged(buyCli, orderID, Market::Action::Modify, false);
+        } else if (isCorp) {
+            SendOnOwnOrderChanged(seller, orderID, Market::Action::Modify, true, nullptr, buyOrderOwnerID);
         }
 
         return true;
@@ -564,7 +575,12 @@ bool MarketMgr::ExecuteBuyOrder(Client* seller, uint32 orderID, InventoryItemRef
     InvalidateOrdersCache(oInfo.regionID, typeID);
 
     if (isPlayer or isCorp) {
-        SendOnOwnOrderChanged(seller, orderID, Market::Action::Expiry, useCorp, order);
+        if (isPlayer) {
+            Client* const buyCli = sEntityList.FindClientByCharID(buyOrderOwnerID);
+            SendOnOwnOrderChanged(buyCli, orderID, Market::Action::Expiry, false, order);
+        } else if (isCorp) {
+            SendOnOwnOrderChanged(seller, orderID, Market::Action::Expiry, true, order, buyOrderOwnerID);
+        }
     }
 
     return true;

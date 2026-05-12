@@ -49,7 +49,7 @@ public:
     // market order placed by seller to sell items (usually at higher prices)
     void ExecuteSellOrder(Client *buyer, uint32 orderID, uint32 quantity, float price, uint32 stationID, uint32 typeID, bool useCorp);
     //forces a refresh of market data.
-    void SendOnOwnOrderChanged(Client* pClient, uint32 orderID, uint8 action, bool isCorp = false, PyRep* order = nullptr);
+    void SendOnOwnOrderChanged(Client* pClient, uint32 orderID, uint8 action, bool isCorp = false, PyRep* order = nullptr, uint32 corpNotifyIdOverride = 0);
 
     void InvalidateOrdersCache(uint32 regionID, uint32 typeID);
 
