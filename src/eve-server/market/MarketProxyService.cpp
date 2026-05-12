@@ -765,8 +765,13 @@ PyResult MarketProxyService::CancelCharOrder(PyCallArgs &call, PyInt* orderID, P
     } else {
         ItemData idata(oInfo.typeID, ownerStation, locTemp, flagHangar, oInfo.quantity);
         InventoryItemRef iRef = sItemFactory.SpawnItem(idata);
-        if (iRef.get() != nullptr)
-            iRef->Donate(call.client->GetCharacterID(), oInfo.stationID, flagHangar, true);
+        if (iRef.get() != nullptr) {
+            if (oInfo.isCorp) {
+                iRef->Donate(oInfo.ownerID, oInfo.stationID, flagCorpMarket, true);
+            } else {
+                iRef->Donate(call.client->GetCharacterID(), oInfo.stationID, flagHangar, true);
+            }
+        }
     }
 
     PyRep* order(MarketDB::GetOrderRow(orderID->value()));
