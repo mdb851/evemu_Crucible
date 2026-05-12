@@ -341,7 +341,11 @@ Next compile-first probe (sixty-second): keep the **full probe-sixty-one** carri
 
 Next compile-first probe (sixty-fourth): keep the **full probe-sixty-three** carried TU set; add **`pos/Array.cpp`** only first — defines **`ArraySE::ArraySE`** and adjacent **`ArraySE::*`** at the new head.
 
-**Autopilot session (May 11–12, 2026):** Ran probes **26–63** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe63_link_full.log`**.
+**Sixty-fourth compile-first probe (temporary; reverted):** Full **probe-sixty-three** set plus **`pos/Array.cpp`**. **Compile OK, link failed.** **`ArraySE::ArraySE(...)`** from **`DynamicEntityFactory::BuildEntity`** no longer heads the tail — probe sixty-four **cleared the array structure-entity head** from **`SystemManager`**. **First `undefined reference`** cluster: **`SystemManager.cpp.o`** in **`DynamicEntityFactory::BuildEntity`** — **`DroneSE::DroneSE(...)`** at the head, then **`NPC::NPC`**, **`BatterySE`**, **`WeaponSE`**, **`Sentry`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (sixty-fifth): keep the **full probe-sixty-four** carried TU set; add **`npc/Drone.cpp`** only first — defines **`DroneSE::DroneSE`** and adjacent **`DroneSE::*`** at the new head.
+
+**Autopilot session (May 11–12, 2026):** Ran probes **26–64** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe64_link_full.log`**.
 
 ## Hard project rules
 - Restoration first
