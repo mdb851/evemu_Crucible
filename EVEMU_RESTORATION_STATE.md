@@ -251,6 +251,12 @@ Next compile-first probe (twenty-ninth): keep the **full probe-twenty-eight** TU
 
 Next compile-first probe (thirtieth): keep the **full probe-twenty-nine** TU set; add **`inventory/InventoryDB.cpp`** only first — owns **`InventoryDB::GetItemContents`** (first symbol at the new head).
 
+**Thirtieth compile-first probe (temporary; reverted):** Full **probe-twenty-nine** set plus **`inventory/InventoryDB.cpp`**. **Compile OK, link failed.** Same leading **`Station.cpp.o`** / **`SystemEntity`** relocation **warning** (non-blocker). **`InventoryDB::GetItemContents`** / related **`InventoryDB::*`** from **`Inventory::GetItems`** / **`LoadContents`** no longer head the tail — probe thirty **cleared the InventoryDB slice** at the front of **`Inventory.cpp.o`**. **First `undefined reference`** cluster: **`Inventory.cpp.o`** in **`Inventory::ValidateIHubUpgrade`** — **`SovereigntyDataMgr::GetSovereigntyData(unsigned int)`** at the head, then **`SovereigntyDataMgr::SovereigntyDataMgr()`**, then **`StationDB::LoadOffices(...)`** in **`Inventory::LoadContents`**, **`SovereigntyDataMgr::~SovereigntyDataMgr()`**, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (thirty-first): keep the **full probe-thirty** TU set; add **`system/sov/SovereigntyDataMgr.cpp`** only first — first symbol family at the new head (**`SovereigntyDataMgr::GetSovereigntyData`**). Still defer **`StationDB`**-owning TUs until the next first-cluster head forces them.
+
+**Autopilot session (May 11, 2026):** Ran probes **26–30** in **`evemu_Crucible_github_work`** (Docker **`cmake` / `cmake --build … eve-test`** per project rule). **`EVEMU_RESTORATION_STATE.md`** and **`CMakeLists.txt`** baseline updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully in this session — **no `ctest`** run. Logs: **`_autoprobe26.log`** … **`_autoprobe30.log`** in repo root (untracked).
+
 ## Hard project rules
 - Restoration first
 - No solo customization during restoration
