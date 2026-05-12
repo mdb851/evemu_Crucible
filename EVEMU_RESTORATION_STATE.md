@@ -14,10 +14,11 @@
 - **`fc340077`** — `fix: allow corporation market PlaceCharOrder (remove stub deny)` — early `useCorp` return removed; corp escrow/fee paths below are now reachable (station office / role TODOs remain in-file comments).
 - **`6023a4ed`** — standalone **`docker-compose.isolated.yml`** (parallel **`evemu_isolated_*`** stack; host **26100**/**26101**).
 - **`bce8fe7b`** — corp **buy** **`ModifyCharOrder` / `CancelCharOrder`**: escrow legs use **`oInfo.ownerID` + `oInfo.accountKey`** when **`oInfo.isCorp`** (aligned with `PlaceCharOrder`); **owner-only** guard on modify/cancel.
+- **`79344877`** — **`MarketMgr::ExecuteSellOrder`** when buyer uses **corp wallet** (`useCorp`): ISK transfer uses **corp ID + division key**; seller credit uses **`oInfo.accountKey`** for corp sell orders; bought items **`Donate`** to **`flagCorpMarket`**; sell-order **`SendOnOwnOrderChanged`** uses **`oInfo.isCorp`**; **`mktTransactions`** buy-side **`accountKey`** / sell-side **`clientID`** aligned with corp buyer.
 
-**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). **`docker compose -f docker-compose.isolated.yml -p evemu_iso build server`** — **PASS** after **`bce8fe7b`**; **`docker compose … up -d --force-recreate server`** — **PASS** (log: **EVEmu Server is Online**). Default `docker compose up -d` still conflicts when global names **`db`**/**`server`** or ports **26000**–**26001** are taken (unchanged; other stack untouched).
+**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). **`docker compose -f docker-compose.isolated.yml -p evemu_iso build server`** — **PASS** after **`bce8fe7b`** and again after **`79344877`**; **`docker compose … up -d --force-recreate server`** — **PASS** (log: **EVEmu Server is Online**). Default `docker compose up -d` still conflicts when global names **`db`**/**`server`** or ports **26000**–**26001** are taken (unchanged; other stack untouched).
 
-**Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction, (4) **corp buy** modify/cancel → ISK moves on **corp division** from **`mktOrders.accountKey`**, not personal wallet.
+**Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction, (4) **corp buy** modify/cancel → ISK moves on **corp division** from **`mktOrders.accountKey`**, not personal wallet, (5) **corp immediate buy** (`duration==0`) from sell order → debit **corp division**, items appear in **corp market deliveries**.
 
 **Next slice:** Live client smoke on **26100** if default **26000** is owned (`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d`); contract item-select / market matrix / corp courier batch as prioritized.
 
@@ -59,7 +60,7 @@
 | Insurance purchase (`InsureShip` RPC + tiers) | PASS |
 | Insurance payout (code review) | PASS |
 | Market sell / modify / cancel (personal) | PASS (matrix — no change this session) |
-| Corporation market (`PlaceCharOrder` / modify / cancel corp paths) | PARTIAL (`fc340077` stub deny removed; `bce8fe7b` corp buy modify/cancel wallet routing; live smoke pending) |
+| Corporation market (`PlaceCharOrder` / modify / cancel corp paths) | PARTIAL (`fc340077`, `bce8fe7b`, `79344877`; live smoke pending) |
 | Contracts `SearchContracts` byname safety | PARTIAL (code; matrix unchanged) |
 | External review: corp accept hardening + `RUN_WITH_GDB` | PARTIAL |
 | Courier corp collateral + `acceptorWalletKey` + `acceptorCorpID` + `CompleteContract` routing | PARTIAL (this slice) |
