@@ -400,7 +400,7 @@ bool MarketMgr::ExecuteBuyOrder(Client* seller, uint32 orderID, InventoryItemRef
 
             InventoryItemRef siRef = iRef->Split(oInfo.quantity);
             if (siRef.get() == nullptr) {
-                _log(MARKET__ERROR, "ExecuteBuyOrder - Failed to split %u %s.", siRef->itemID(), siRef->name());
+                _log(MARKET__ERROR, "ExecuteBuyOrder - Failed to split qty %u from order #%u (item split returned null).", oInfo.quantity, orderID);
                 return false;
             }
 
