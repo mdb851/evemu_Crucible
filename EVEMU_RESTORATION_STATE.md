@@ -323,7 +323,11 @@ Next compile-first probe (fifty-eighth): keep the **full probe-fifty-seven** car
 
 Next compile-first probe (fifty-ninth): keep the **full probe-fifty-eight** carried TU set; add **`system/cosmicMgrs/SpawnMgr.cpp`** only first — owns **`SpawnMgr::Init`**, **`SpawnMgr::SpawnMgr`**, **`SpawnMgr::Process`**, and related **`SpawnMgr::*`** at the new head.
 
-**Autopilot session (May 11–12, 2026):** Ran probes **26–58** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe58_link_full.log`**.
+**Fifty-ninth compile-first probe (temporary; reverted):** Full **probe-fifty-eight** set plus **`system/cosmicMgrs/SpawnMgr.cpp`**. **Compile OK, link failed.** **`SpawnMgr::Init`**, **`SpawnMgr::SpawnMgr`**, **`SpawnMgr::Process`**, and related **`SpawnMgr::*`** from **`SystemManager`** no longer head the tail — probe fifty-nine **cleared the spawn-mgr head** from **`SystemManager`**. **First `undefined reference`** cluster: **`SystemManager.cpp.o`** — **`DungeonMgr::Init(AnomalyMgr*, SpawnMgr*)`** at the head, then **`BeltMgr::Init`**, **`AnomalyMgr::Init`**, ctors **`AnomalyMgr`**, **`BeltMgr`**, **`DungeonMgr`**, **`Process()`** for those mgrs, … **Reverted** to 5-TU baseline.
+
+Next compile-first probe (sixtieth): keep the **full probe-fifty-nine** carried TU set; add **`system/cosmicMgrs/DungeonMgr.cpp`** only first — owns **`DungeonMgr::Init`**, **`DungeonMgr::DungeonMgr`**, **`DungeonMgr::Process`**, and related **`DungeonMgr::*`** at the new head.
+
+**Autopilot session (May 11–12, 2026):** Ran probes **26–59** in **`evemu_Crucible_github_work`** (Docker image **`evemu_app_build:latest`**: **`cmake -S . -B build-test -DEVEMU_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release`** + **`cmake --build build-test --parallel 4 --target eve-test`**). **`EVEMU_RESTORATION_STATE.md`** updated per probe; **`CMakeLists.txt`** remains the **5-TU** committed testlib after each revert. **`eve-test`** did **not** link successfully — **no `ctest`** run. Full link logs (untracked): **`_probe32_link_full.log`** … **`_probe59_link_full.log`**.
 
 ## Hard project rules
 - Restoration first
