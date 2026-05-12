@@ -605,7 +605,7 @@ PyResult ContractProxy::DeleteContract(PyCallArgs &call, PyInt* contractID) {
         issuerWalletKeyRaw = rfc.GetInt(5);
         issuerCorpIDRow = rfc.GetUInt(6);
     }
-    const uint32 itemOwnerRestore = issuerForCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
+    const uint32 itemOwnerRestore = issuerForCorp ? issuerCorpIDRow : call.client->GetCharacterID();
 
     // Outstanding courier: return reward — personal was debited at create; corp issuer funds were moved to SCC at create.
     if (contractType == 3 && contractReward > 0 && contractStatus == 0) {
