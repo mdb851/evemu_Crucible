@@ -203,12 +203,6 @@ PyResult MarketProxyService::PlaceCharOrder(PyCallArgs &call, PyInt* stationID, 
 
     //TODO: verify the validity of args.stationID (range vs. skill)
 
-    if (useCorp->value()) {
-        _log(MARKET__MESSAGE, "Denying Corp Market use for %s", call.client->GetName());
-        call.client->SendErrorMsg("Corporation Market transactions are not available at this time.");
-        return nullptr;
-    }
-
     /** @todo  update for corporate use
      * check corp has office in target station for item delivery
      * check player can use given corp acct (get current division from char data)
