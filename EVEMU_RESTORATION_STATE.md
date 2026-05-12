@@ -2,6 +2,26 @@
 
 ## RESTORATION SLICE RESULT (latest)
 
+**Slice:** Baseline verify — contract `GetItemsInStation` crash guard, market self-buy block, market modify escrow direction, eve-core Buffer/Deflate compile hygiene
+
+**Status:** PARTIAL — all listed fixes **present on branch**; `docker compose build server` **PASS** at HEAD; **live** contract item-select / market self-buy / modify wallet matrix **not re-run** this session (no client harness here). Fresh `docker compose up -d` **failed** on this host: Docker reports container name **`/db`** already in use by another project (operator: `docker compose -p <unique> up -d`, or remove/rename the conflicting stack).
+
+**Evidence (commits on `restoration/contract-accept-corp`):**
+- **`cf7dcd40`** — `fix: guard contract station item enumeration from null crash` (`ContractProxy::GetItemsInStation` tuple vs bound station id, null guards, hangar list owner filter).
+- **`bf6b0f24`** — `fix: block market self-buy settlement` (`MarketMgr::ExecuteSellOrder` / `ExecuteBuyOrder` owner vs buyer/seller wallet party).
+- **`9f6ace9f`** — `fix: correct market order modify escrow/accounting direction` (`MarketProxyService::ModifyCharOrder`: DB old price, buy-only escrow delta, correct Cash/Escrow direction; no bogus sell escrow transfer).
+- **`c840814d`** — `fix: replace deprecated std::iterator in Buffer and zlib dest pointer constness` (`Buffer.h`, `Deflate.cpp`).
+
+**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026). Sampled `docker logs server` from an **existing** `server` container (market bot tick); new compose stack not started due to name conflict above.
+
+**Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction.
+
+**Next slice:** Unblock compose project name **or** use isolated compose project; run client smoke above; then resume **corp courier** live PASS batch (prior slice below) if still highest value.
+
+---
+
+### Prior slice (still PARTIAL — unchanged scope)
+
 **Slice:** Courier corp completion — collateral + **reward** to persisted **`acceptorCorpID`** / division; session guard
 
 **Status:** PARTIAL — server wired; **live smoke** (corp issuer debit, corp acceptor collateral + reward credit, fail path, **corp-hop blocked**) batched for end-of-sprint PASS
@@ -25,14 +45,13 @@
 
 **Remaining risk:** Legacy rows with **`acceptorWalletKey != 0`** and **`acceptorCorpID == 0`** (accepted before migration) are **rejected** at completion with a migration/recreate message; plastic wrap / cargo ownership stays **character** (courier pilot).
 
-**Next slice:** Batched **live smoke** on this branch (contracts). **Optional later code:** courier **`CreateContract`** reward pre-pay for **`forCorp`** issuers (still character-only). **Matrix backlog** (PvP, mining, industry, corp market smoke) — separate restoration slices, not part of this contract branch.
-
 ---
 
 ### Completed slices archive (this sprint)
 
 | Slice | Status |
 |-------|--------|
+| Baseline verify: contract `GetItemsInStation` + market self-buy + market modify escrow + Buffer/Deflate | PARTIAL (build PASS; live smoke pending; compose name conflict noted) |
 | Insurance purchase (`InsureShip` RPC + tiers) | PASS |
 | Insurance payout (code review) | PASS |
 | Market sell / modify / cancel (personal) | PASS (matrix — no change this session) |
