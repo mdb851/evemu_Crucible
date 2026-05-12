@@ -463,7 +463,7 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
              * We need to validate traded items exist, have correct owner and quantities. Any item that fails the check is excluded from the list.
              */
              DBResultRow row;
-             int expectedOwnerID = call.client->GetCharacterID();
+             const uint32 expectedOwnerID = forCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
              // We work directly with DBQueryResult since resulting CRowSet does not fit ctrItems format - thus, it would be needless processing.
              while(res.GetRow(row)) {
                  int itemID = row.GetInt(0);
@@ -477,7 +477,7 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
                  int damage = row.IsNull(9) ? 0 : row.GetInt(9);
                  int flag = row.IsNull(10) ? 0 : row.GetInt(10);
 
-                 if (ownerID == expectedOwnerID && quantity == expectedQuantities.find(itemID)->second) {
+                 if (static_cast<uint32>(ownerID) == expectedOwnerID && quantity == expectedQuantities.find(itemID)->second) {
                      itemsToInsert.append("(" + std::to_string(contractId) + ", " +
                         std::to_string(itemID) + ", " +
                         std::to_string(quantity) + ", " +
