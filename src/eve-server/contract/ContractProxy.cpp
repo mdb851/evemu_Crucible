@@ -551,6 +551,20 @@ PyResult ContractProxy::DeleteContract(PyCallArgs &call, PyInt* contractID) {
     sLog.White( "ContractProxy::Handle_DeleteContract()", "size=%lu", call.tuple->size());
     call.Dump(SERVICE__CALL_DUMP);
 
+    bool issuerForCorp = false;
+    {
+        DBQueryResult resForCorp;
+        if (sDatabase.RunQuery(resForCorp,
+                               "SELECT forCorp FROM ctrContracts WHERE contractId = %u",
+                               contractID->value())
+            && resForCorp.GetRowCount() > 0) {
+            DBResultRow rfc;
+            resForCorp.GetRow(rfc);
+            issuerForCorp = rfc.GetBool(0);
+        }
+    }
+    const uint32 itemOwnerRestore = issuerForCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
+
     // In order to return items back to the owner, we need a full list of entityID's to return. We gather them using utils function
     std::vector<int> entityIds;
     ContractUtils::GetContractItemIDs(contractID->value(), &entityIds);
@@ -560,7 +574,7 @@ PyResult ContractProxy::DeleteContract(PyCallArgs &call, PyInt* contractID) {
             // We have to check if we actually got the item ref - in case of invalid entity ID specified.
             InventoryItemRef ref = sItemFactory.GetItemRef(entityID);
             if (ref) {
-                ref->ChangeOwner(call.client->GetCharacterID(), true);
+                ref->ChangeOwner(itemOwnerRestore, true);
             } else {
                 continue;
             }
