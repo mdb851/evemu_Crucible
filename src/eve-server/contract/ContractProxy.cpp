@@ -1187,12 +1187,46 @@ PyResult ContractProxy::NumOutstandingContracts(PyCallArgs &call) {
 }
 
 PyResult ContractProxy::GetItemsInStation(PyCallArgs &call, PyInt* stationID, std::optional<PyInt*> forCorp) {
-    uint32 station = call.tuple->GetItem(0)->AsInt()->value();
-
-    if (sDataMgr.IsStation(stationID->value()) == false)
+    if (call.client == nullptr || stationID == nullptr) {
+        codelog(SERVICE__ERROR, "GetItemsInStation: null client or stationID");
         return nullptr;
+    }
 
-    return sItemFactory.GetStationRef(station)->GetMyInventory()->List(flagHangar);
+    const uint32 sid = stationID->value();
+
+    if (call.tuple != nullptr && call.tuple->size() > 0) {
+        PyRep* const r0 = call.tuple->GetItem(0);
+        if (r0 != nullptr && r0->IsInt()) {
+            const uint32 tupleSid = r0->AsInt()->value();
+            if (tupleSid != sid)
+                codelog(SERVICE__ERROR, "GetItemsInStation: tuple[0] station %u != bound stationID %u (using bound id)", tupleSid, sid);
+        }
+    }
+
+    if (!sDataMgr.IsStation(sid)) {
+        codelog(SERVICE__ERROR, "GetItemsInStation: id %u is not a station", sid);
+        return nullptr;
+    }
+
+    StationItemRef sref = sItemFactory.GetStationRef(sid);
+    if (!sref) {
+        codelog(SERVICE__ERROR, "GetItemsInStation: GetStationRef(%u) returned null", sid);
+        return nullptr;
+    }
+
+    Inventory* inv = sref->GetMyInventory();
+    if (inv == nullptr) {
+        codelog(SERVICE__ERROR, "GetItemsInStation: station %u has null inventory", sid);
+        return nullptr;
+    }
+
+    uint32 itemOwner = call.client->GetCharacterID();
+    if (forCorp.has_value() && forCorp.value() != nullptr && forCorp.value()->value() != 0)
+        itemOwner = call.client->GetCorporationID();
+
+    sLog.White("ContractProxy::GetItemsInStation()", "station=%u itemOwner=%u forCorpOpt=%d", sid, itemOwner, forCorp.has_value() ? 1 : 0);
+
+    return inv->List(flagHangar, itemOwner);
 }
 
 PyResult ContractProxy::CollectMyPageInfo(PyCallArgs &call) {
