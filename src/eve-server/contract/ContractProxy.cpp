@@ -769,12 +769,29 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                     if (!requestedItems.empty()) {
                         for (auto entry : requestedItems) {
                             int entityID = FindRequestStackInStationHangars(stationInv, entry.first, entry.second, acceptorItemOwnerID, acceptorForCorp, acceptorForCorp ? call.client : nullptr);
-                            if (stationInv->GetByID(entityID)->quantity() > entry.second) {
+                            if (entityID == 0) {
+                                codelog(SERVICE__ERROR, "%s: AcceptContract item-exchange requested stack missing (typeID=%u qty=%u).", GetName(), entry.first, entry.second);
+                                call.client->SendNotifyMsg("Required items are no longer available at this station.");
+                                return nullptr;
+                            }
+                            InventoryItemRef stackRef = stationInv->GetByID(entityID);
+                            if (stackRef.get() == nullptr) {
+                                codelog(SERVICE__ERROR, "%s: AcceptContract GetByID(%d) null for requested stack.", GetName(), entityID);
+                                call.client->SendNotifyMsg("Required items are no longer available at this station.");
+                                return nullptr;
+                            }
+                            if (stackRef->quantity() > entry.second) {
                                 // If located stack contains more than we need, we split it and transfer the required amount.
-                                stationInv->GetByID(entityID)->Split(entry.second)->ChangeOwner(issuerWalletID, true);
+                                stackRef->Split(entry.second)->ChangeOwner(issuerWalletID, true);
                             } else {
                                 // If not - we simply transfer it to issuer.
-                                sItemFactory.GetItemRef(entityID)->ChangeOwner(issuerWalletID, true);
+                                InventoryItemRef entRef = sItemFactory.GetItemRef(entityID);
+                                if (entRef.get() == nullptr) {
+                                    codelog(SERVICE__ERROR, "%s: AcceptContract GetItemRef(%d) null before ChangeOwner to issuer.", GetName(), entityID);
+                                    call.client->SendNotifyMsg("Required items are no longer available at this station.");
+                                    return nullptr;
+                                }
+                                entRef->ChangeOwner(issuerWalletID, true);
                             }
                         }
                     }
@@ -782,7 +799,13 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                     // And finally, we go for traded items
                     if (!tradedItems.empty()) {
                         for (auto item : tradedItems) {
-                            sItemFactory.GetItemRef(item)->ChangeOwner(acceptorItemOwnerID, true);
+                            InventoryItemRef tRef = sItemFactory.GetItemRef(item);
+                            if (tRef.get() == nullptr) {
+                                codelog(SERVICE__ERROR, "%s: AcceptContract traded item %d not loaded.", GetName(), item);
+                                call.client->SendNotifyMsg("Contract traded items could not be loaded.");
+                                return nullptr;
+                            }
+                            tRef->ChangeOwner(acceptorItemOwnerID, true);
                         }
                     }
 
