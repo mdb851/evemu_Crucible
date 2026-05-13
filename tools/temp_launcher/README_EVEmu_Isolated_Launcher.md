@@ -21,10 +21,11 @@ The launch **`.bat` keeps the window open** and prints the last lines of **`back
 
 ### If the game still does not appear
 
-1. Read **`tools\temp_launcher\backup\launcher_last_run.log`** (full file).
-2. Confirm **`Start-Process returned PID=...`** — if yes, open **Task Manager** and look for **ExeFile** / **exefile** (process may exit quickly on crash).
-3. Start the isolated Docker stack first; confirm **26100/26101** are listening (`Test-NetConnection localhost -Port 26100`).
-4. Run **`Launch_EVEmu_Isolated.ps1 -ValidateOnly`** from **`tools\temp_launcher`** to verify paths.
+1. **blue_patcher** ([README](https://raw.githubusercontent.com/bluepatcher/blue_patcher/master/README.md)): **`common.ini`** in the same **`bin`** folder must have **`cryptoPack=Placebo`** (not `CryptoAPI`). Run **`Launch_EVEmu_Isolated.ps1 -ValidateOnly`** — it reports `common.ini` status.
+2. **`start.ini` must replace `server=Tranquility`** with your emulator host; the launcher template now sets **`[main]`** + **`[machoNet]`**. If you already ran an older launcher template, either run **`Restore_Normal_Client.bat`** then launch again, or run **`Launch_EVEmu_Isolated.bat -ForceRefreshIni`** to rewrite **`start.ini`** while keeping the session.
+3. Read **`tools\temp_launcher\backup\launcher_last_run.log`** (full file).
+4. Confirm **`Start-Process returned PID=...`** — if yes, open **Task Manager** and look for **ExeFile** (process may exit quickly on crash).
+5. Start the isolated Docker stack first; confirm **26100/26101** are listening (`Test-NetConnection localhost -Port 26100`).
 
 PowerShell entry points (same behavior): `Launch_EVEmu_Isolated.ps1`, `Restore_EVEmu_Isolated_Client.ps1`.
 
@@ -39,7 +40,7 @@ PowerShell entry points (same behavior): `Launch_EVEmu_Isolated.ps1`, `Restore_E
 
 ## What it changes
 
-- In your **client `bin` folder only**: writes **`start.ini`** with `[machoNet]` pointing at **`127.0.0.1`**, **`port=<game>`**, **`proxyport=<proxy>`** (default **26100** / **26101**).
+- In your **client `bin` folder only**: writes **`start.ini`** with **`[main]`** (`server=127.0.0.1`, `port=`), **`[app]`**, **`[localization]`**, and **`[machoNet]`** (`address` / `port` / `proxyport`) — aligned with **blue_patcher** (replace `server=Tranquility`, not only machoNet). File is written as **UTF-8 without BOM** (BOM can break the client INI reader).
 - In **`tools\temp_launcher\backup\`** (local, gitignored):
   - **`start.ini.original`** — copy of your previous `start.ini` if one existed.
   - **`isolated_launcher_state.json`** — marks an active “session” so relaunch does not re-backup.
