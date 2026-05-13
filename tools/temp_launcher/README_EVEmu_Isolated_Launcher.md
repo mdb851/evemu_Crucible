@@ -17,6 +17,15 @@ Confirm logs: **`EVEmu Server is Online`**.
 | Connect client to isolated ports | `tools\temp_launcher\Launch_EVEmu_Isolated.bat` |
 | Undo `start.ini` changes | `tools\temp_launcher\Restore_Normal_Client.bat` |
 
+The launch **`.bat` keeps the window open** and prints the last lines of **`backup\launcher_last_run.log`** so a successful run does not look like “nothing happened.”
+
+### If the game still does not appear
+
+1. Read **`tools\temp_launcher\backup\launcher_last_run.log`** (full file).
+2. Confirm **`Start-Process returned PID=...`** — if yes, open **Task Manager** and look for **ExeFile** / **exefile** (process may exit quickly on crash).
+3. Start the isolated Docker stack first; confirm **26100/26101** are listening (`Test-NetConnection localhost -Port 26100`).
+4. Run **`Launch_EVEmu_Isolated.ps1 -ValidateOnly`** from **`tools\temp_launcher`** to verify paths.
+
 PowerShell entry points (same behavior): `Launch_EVEmu_Isolated.ps1`, `Restore_EVEmu_Isolated_Client.ps1`.
 
 ## One-time setup

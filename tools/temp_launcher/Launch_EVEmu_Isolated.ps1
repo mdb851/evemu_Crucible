@@ -18,7 +18,29 @@ $ErrorActionPreference = 'Stop'
 $LauncherRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $StatePath = Join-Path $LauncherRoot 'backup\isolated_launcher_state.json'
 $BackupDir = Join-Path $LauncherRoot 'backup'
+$LogPath = Join-Path $LauncherRoot 'backup\launcher_last_run.log'
 $ClientPathFile = Join-Path $LauncherRoot 'client_path.local.txt'
+
+function Write-LaunchLog([string]$Message) {
+    Write-Host $Message
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Message"
+    try {
+        if (-not (Test-Path -LiteralPath $BackupDir)) {
+            New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+        }
+        Add-Content -LiteralPath $LogPath -Value $line -Encoding UTF8 -ErrorAction SilentlyContinue
+    } catch {}
+}
+
+function Get-ClientExePath([string]$ClientRoot) {
+    foreach ($name in @('ExeFile.exe', 'exefile.exe')) {
+        $p = Join-Path $ClientRoot $name
+        if (Test-Path -LiteralPath $p) {
+            return (Get-Item -LiteralPath $p).FullName
+        }
+    }
+    return $null
+}
 
 $PortGame = if ($env:EVEMU_ISOLATED_PORT0) { [int]$env:EVEMU_ISOLATED_PORT0 } else { 26100 }
 $PortProxy = if ($env:EVEMU_ISOLATED_PORT1) { [int]$env:EVEMU_ISOLATED_PORT1 } else { 26101 }
@@ -41,7 +63,7 @@ function Read-ClientRoot {
         throw "client_path.local.txt is empty. Set one line: client bin directory or path to exefile.exe"
     }
     $line = ($raw -split "`r?`n", 2)[0].Trim()
-    if ($line -match 'exefile\.exe$') {
+    if ($line -match '(?i)exefile\.exe$') {
         return (Split-Path -Parent $line)
     }
     return $line.TrimEnd('\')
@@ -66,17 +88,17 @@ proxyport=$proxy
 }
 
 $clientRoot = Read-ClientRoot
-$exefile = Join-Path $clientRoot 'exefile.exe'
+$exefile = Get-ClientExePath $clientRoot
 $startIni = Join-Path $clientRoot 'start.ini'
 
-if (-not (Test-Path -LiteralPath $exefile)) {
-    throw "exefile.exe not found at '$exefile'. Fix client_path.local.txt (see client_path.example.txt)."
+if (-not $exefile) {
+    throw "No ExeFile.exe / exefile.exe found under '$clientRoot'. Fix client_path.local.txt (see client_path.example.txt)."
 }
 
 if ($ValidateOnly) {
     Write-Host "ValidateOnly: OK"
     Write-Host "  Client root: $clientRoot"
-    Write-Host "  exefile.exe: $exefile"
+    Write-Host "  Client exe:  $exefile"
     Write-Host "  start.ini:   $startIni (exists=$(Test-Path -LiteralPath $startIni))"
     Write-Host "  Target:      127.0.0.1  game=$PortGame  proxy=$PortProxy"
     Write-Host "  State file:  $StatePath (exists=$(Test-Path -LiteralPath $StatePath))"
@@ -84,6 +106,7 @@ if ($ValidateOnly) {
 }
 
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+Write-LaunchLog "==== EVEmu isolated launch session ===="
 
 if (Test-Path -LiteralPath $StatePath) {
     try {
@@ -94,8 +117,10 @@ if (Test-Path -LiteralPath $StatePath) {
     if ($prev.ClientRoot -ne $clientRoot) {
         throw "Active isolated session for different client root: '$($prev.ClientRoot)'. Run Restore_Normal_Client.bat first."
     }
-    Write-Host "Isolated session already active for this client; launching exefile.exe again..."
-    Start-Process -FilePath $exefile -WorkingDirectory $clientRoot
+    Write-LaunchLog "Isolated session already active; launching again: $exefile"
+    $proc = Start-Process -FilePath $exefile -WorkingDirectory $clientRoot -PassThru
+    Write-LaunchLog "Start-Process returned PID=$($proc.Id) Name=$($proc.ProcessName)"
+    Write-LaunchLog "If no window appeared, check Task Manager for ExeFile/eve, or read: $LogPath"
     exit 0
 }
 
@@ -104,9 +129,9 @@ $hadOriginal = Test-Path -LiteralPath $startIni
 
 if ($hadOriginal) {
     Copy-Item -LiteralPath $startIni -Destination $backupOriginal -Force
-    Write-Host "Backed up existing start.ini to:`n  $backupOriginal"
+    Write-LaunchLog "Backed up existing start.ini to: $backupOriginal"
 } else {
-    Write-Host "No existing start.ini; a new one will be created for isolated use."
+    Write-LaunchLog "No existing start.ini; creating one for isolated use."
 }
 
 Set-Content -LiteralPath $startIni -Value (Ensure-StartIniContent $PortGame $PortProxy) -Encoding UTF8
@@ -123,5 +148,13 @@ $state = [ordered]@{
 }
 $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $StatePath -Encoding UTF8
 
-Write-Host "Wrote isolated start.ini (127.0.0.1:$PortGame / proxy $PortProxy). Launching client..."
-Start-Process -FilePath $exefile -WorkingDirectory $clientRoot
+Write-LaunchLog "Wrote isolated start.ini (127.0.0.1:$PortGame / proxy $PortProxy)."
+Write-LaunchLog "Launching: $exefile"
+try {
+    $proc = Start-Process -FilePath $exefile -WorkingDirectory $clientRoot -PassThru
+    Write-LaunchLog "Start-Process returned PID=$($proc.Id) Name=$($proc.ProcessName)"
+} catch {
+    Write-LaunchLog "Start-Process failed: $($_.Exception.Message)"
+    throw
+}
+Write-LaunchLog "If the client window did not appear, see Task Manager or log: $LogPath"
