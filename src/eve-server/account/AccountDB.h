@@ -37,6 +37,8 @@ public:
     PyRep* GetJournal(uint32 ownerID, int8 entryTypeID, uint16 accountKey, int64 fromDate, bool reverse = false);
 
     static double OfflineFundXfer(uint32 charID, double amount, uint8 type=Account::CreditType::ISK);
+    /** ISK balance from `chrCharacters` (works when the issuer is not loaded as a Character entity). */
+    static double GetCharacterISKBalance(uint32 characterID);
     static double GetCorpBalance(uint32 corpID, uint16 accountKey);
     static void UpdateCorpBalance(uint32 corpID, uint16 accountKey, double amount);
 

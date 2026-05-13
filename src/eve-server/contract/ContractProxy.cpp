@@ -726,7 +726,7 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                     if (issuerForCorp) {
                         if (AccountDB::GetCorpBalance(issuerCorpID, issuerMoneyKey) < reward)
                             rewardRequirementMet = false;
-                    } else if (sItemFactory.GetCharacterRef(issuerID)->balance(Account::CreditType::ISK) < reward) {
+                    } else if (AccountDB::GetCharacterISKBalance(static_cast<uint32>(issuerID)) < static_cast<double>(reward)) {
                         rewardRequirementMet = false;
                     }
                 }
