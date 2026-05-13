@@ -6,6 +6,8 @@
 
 **Operators — isolated stack:** `docker compose -f docker-compose.isolated.yml -p evemu_iso build server` → `docker compose -f docker-compose.isolated.yml -p evemu_iso up -d --force-recreate server` → **`docker logs evemu_isolated_server`** must show **EVEmu Server is Online**. Host **26100** / **26101** → container **26000** / **26001**.
 
+**Copy-paste RC status (operator narrative):** [`EVEMU_RELEASE_CANDIDATE_STATUS.md`](EVEMU_RELEASE_CANDIDATE_STATUS.md)
+
 ## Final completion matrix (release-candidate)
 
 Each area is in **exactly one** bucket (**5** = legacy-data only):
