@@ -27,6 +27,8 @@
 
 #include <boost/algorithm/string/replace.hpp>
 #include <algorithm>    // Added to prevent std::find from freaking out
+#include <exception>
+#include <vector>
 #include "eve-server.h"
 
 
@@ -118,6 +120,57 @@ bool ValidateCorpCourierAcceptSession(Client* client, int acceptorWalletKeyRaw, 
         return false;
     }
     return true;
+}
+
+/** After `ctrContracts` insert: reverse create-time wallet effects, return traded items from escrow owner `1`, delete rows. */
+void RollbackCreateContractAfterInsert(
+    Client* client,
+    uint32 contractId,
+    int contractType,
+    uint32 rewardAmount,
+    bool forCorp,
+    bool corpSccEscrowDone,
+    const std::vector<int>& itemsMovedToContractEscrow,
+    uint32 expectedOwnerID,
+    uint16 issuerMoneyKeyForCorpRollback)
+{
+    if (contractId == 0u)
+        return;
+
+    for (int movedId : itemsMovedToContractEscrow) {
+        InventoryItemRef ref = sItemFactory.GetItemRef(movedId);
+        if (ref.get() != nullptr)
+            ref->ChangeOwner(expectedOwnerID, true);
+    }
+
+    if (client != nullptr) {
+        if (corpSccEscrowDone && contractType == 3 && rewardAmount > 0u && forCorp) {
+            try {
+                AccountService::TransferFunds(
+                    corpSCC,
+                    client->GetCorporationID(),
+                    static_cast<double>(rewardAmount),
+                    "Rollback courier contract reward escrow",
+                    Journal::EntryType::ContractCollateralRefund,
+                    contractId,
+                    Account::KeyType::Cash,
+                    issuerMoneyKeyForCorpRollback,
+                    client);
+            } catch (const std::exception& ex) {
+                codelog(SERVICE__ERROR, "RollbackCreateContractAfterInsert: reverse corp SCC escrow failed for contract %u: %s", contractId, ex.what());
+            } catch (...) {
+                codelog(SERVICE__ERROR, "RollbackCreateContractAfterInsert: reverse corp SCC escrow failed for contract %u", contractId);
+            }
+        } else if (contractType == 3 && rewardAmount > 0u && !forCorp) {
+            client->AddBalance(static_cast<double>(rewardAmount));
+        }
+    }
+
+    DBerror err;
+    if (!sDatabase.RunQuery(err, "DELETE FROM ctrItems WHERE contractId = %u", contractId))
+        codelog(DATABASE__ERROR, "RollbackCreateContractAfterInsert: ctrItems delete for %u: %s", contractId, err.c_str());
+    if (!sDatabase.RunQuery(err, "DELETE FROM ctrContracts WHERE contractId = %u", contractId))
+        codelog(DATABASE__ERROR, "RollbackCreateContractAfterInsert: ctrContracts delete for %u: %s", contractId, err.c_str());
 }
 
 } // namespace
@@ -430,6 +483,7 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
         return nullptr;
     }
 
+    bool corpSccEscrowDone = false;
     if (contractType->value() == 3 && reward->value() > 0 && forCorp) {
         const uint16 divKey = static_cast<uint16>(issuerWalletKeyInsert);
         AccountService::TransferFunds(
@@ -443,6 +497,7 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
             Account::KeyType::Cash,
             call.client
         );
+        corpSccEscrowDone = true;
     }
 
     /**
@@ -452,6 +507,11 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
      */
     std::string itemsToInsert;
     float totalVolume = 0.00;
+    std::vector<int> itemsMovedToContractEscrow;
+    const uint32 expectedTradedOwnerRollback = forCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
+    const uint16 issuerMoneyKeyRollback = issuerWalletKeyInsert != 0u
+        ? static_cast<uint16>(issuerWalletKeyInsert)
+        : static_cast<uint16>(Account::KeyType::Cash);
     if (call.byname.find("itemList")->second->IsList()) {
         PyList *tradedItems = call.byname.find("itemList")->second->AsList();
         if (!tradedItems->empty()) {
@@ -482,6 +542,9 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
             if (!sDatabase.RunQuery(res,query.c_str(), queryIds.c_str()))
             {
                 codelog(DATABASE__ERROR, "Error in query: %s", res.error.c_str());
+                RollbackCreateContractAfterInsert(call.client, contractId, contractType->value(),
+                    static_cast<uint32>(reward->value()), forCorp, corpSccEscrowDone,
+                    itemsMovedToContractEscrow, expectedTradedOwnerRollback, issuerMoneyKeyRollback);
                 return nullptr;
             }
 
@@ -490,7 +553,12 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
              * We need to validate traded items exist, have correct owner and quantities. Any item that fails the check is excluded from the list.
              */
              DBResultRow row;
-             const uint32 expectedOwnerID = forCorp ? call.client->GetCorporationID() : call.client->GetCharacterID();
+             Inventory* stationInvForCourierVol = nullptr;
+             if (contractType->value() == 3) {
+                 StationItemRef stRef = sItemFactory.GetStationRef(startStationID->value());
+                 if (stRef.get() != nullptr)
+                     stationInvForCourierVol = stRef->GetMyInventory();
+             }
              // We work directly with DBQueryResult since resulting CRowSet does not fit ctrItems format - thus, it would be needless processing.
              while(res.GetRow(row)) {
                  int itemID = row.GetInt(0);
@@ -504,7 +572,38 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
                  int damage = row.IsNull(9) ? 0 : row.GetInt(9);
                  int flag = row.IsNull(10) ? 0 : row.GetInt(10);
 
-                 if (static_cast<uint32>(ownerID) == expectedOwnerID && quantity == expectedQuantities.find(itemID)->second) {
+                 const auto exIt = expectedQuantities.find(itemID);
+                 if (exIt == expectedQuantities.end())
+                     continue;
+                 if (static_cast<uint32>(ownerID) == expectedTradedOwnerRollback && quantity == exIt->second) {
+                     InventoryItemRef tradedRef = sItemFactory.GetItemRef(itemID);
+                     if (tradedRef.get() == nullptr) {
+                         codelog(SERVICE__ERROR, "%s: CreateContract traded item %d not loaded after DB validation.", GetName(), itemID);
+                         RollbackCreateContractAfterInsert(call.client, contractId, contractType->value(),
+                             static_cast<uint32>(reward->value()), forCorp, corpSccEscrowDone,
+                             itemsMovedToContractEscrow, expectedTradedOwnerRollback, issuerMoneyKeyRollback);
+                         return nullptr;
+                     }
+
+                     if (contractType->value() == 3) {
+                         if (stationInvForCourierVol == nullptr) {
+                             codelog(SERVICE__ERROR, "%s: CreateContract courier contract needs station inventory for volume.", GetName());
+                             RollbackCreateContractAfterInsert(call.client, contractId, contractType->value(),
+                                 static_cast<uint32>(reward->value()), forCorp, corpSccEscrowDone,
+                                 itemsMovedToContractEscrow, expectedTradedOwnerRollback, issuerMoneyKeyRollback);
+                             return nullptr;
+                         }
+                         InventoryItemRef volStack = stationInvForCourierVol->GetByID(itemID);
+                         if (volStack.get() == nullptr) {
+                             codelog(SERVICE__ERROR, "%s: CreateContract courier volume: item %d not in station inventory.", GetName(), itemID);
+                             RollbackCreateContractAfterInsert(call.client, contractId, contractType->value(),
+                                 static_cast<uint32>(reward->value()), forCorp, corpSccEscrowDone,
+                                 itemsMovedToContractEscrow, expectedTradedOwnerRollback, issuerMoneyKeyRollback);
+                             return nullptr;
+                         }
+                         totalVolume += volStack->GetAttribute(161).get_float() * static_cast<float>(quantity);
+                     }
+
                      itemsToInsert.append("(" + std::to_string(contractId) + ", " +
                         std::to_string(itemID) + ", " +
                         std::to_string(quantity) + ", " +
@@ -518,12 +617,8 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
                         std::to_string(damage) + ", " +
                         std::to_string(flag)+ "),");
 
-                     // We only calculate volume for courier-type contracts - the other types don't use this value.
-                     if (contractType->value() == 3) {
-                         totalVolume += sItemFactory.GetStationRef(startStationID->value())->GetMyInventory()->GetByID(itemID)->GetAttribute(161).get_float() * quantity;
-                     }
-
-                     sItemFactory.GetItemRef(itemID)->ChangeOwner(1, true);
+                     tradedRef->ChangeOwner(1, true);
+                     itemsMovedToContractEscrow.push_back(itemID);
                  }
              }
         }
@@ -553,6 +648,9 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
         if (!sDatabase.RunQueryLID(err, last_insert, query.c_str()))
         {
             codelog(DATABASE__ERROR, "Failed to insert new entity: %s", err.c_str());
+            RollbackCreateContractAfterInsert(call.client, contractId, contractType->value(),
+                static_cast<uint32>(reward->value()), forCorp, corpSccEscrowDone,
+                itemsMovedToContractEscrow, expectedTradedOwnerRollback, issuerMoneyKeyRollback);
             return nullptr;
         }
 
@@ -568,6 +666,9 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
 
     } else {
         codelog(SERVICE__ERROR, "No traded or requested items was specified. Aborting");
+        RollbackCreateContractAfterInsert(call.client, contractId, contractType->value(),
+            static_cast<uint32>(reward->value()), forCorp, corpSccEscrowDone,
+            itemsMovedToContractEscrow, expectedTradedOwnerRollback, issuerMoneyKeyRollback);
         return nullptr;
     }
 
