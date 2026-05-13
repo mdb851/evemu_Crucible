@@ -27,7 +27,26 @@ The launch **`.bat` keeps the window open** and prints the last lines of **`back
 4. Confirm **`Start-Process returned PID=...`** — if yes, open **Task Manager** and look for **ExeFile** (process may exit quickly on crash).
 5. Start the isolated Docker stack first; confirm **26100/26101** are listening (`Test-NetConnection localhost -Port 26100`).
 
-PowerShell entry points (same behavior): `Launch_EVEmu_Isolated.ps1`, `Restore_EVEmu_Isolated_Client.ps1`.
+## Client setup (ExeFile gets a PID but no window)
+
+The launcher only writes **`start.ini`** and starts **`ExeFile.exe`**. If **`common.ini`** or **`blue.dll`** are missing from the same **`bin`**, you do **not** have a complete **blue_patched** Crucible layout — **`ExeFile` will often exit immediately**.
+
+Do this **in order**:
+
+1. **Start clean** — **`Restore_Normal_Client.bat`**, then either **`Launch_EVEmu_Isolated.bat`** or from a terminal in **`tools\temp_launcher`**:  
+   `Launch_EVEmu_Isolated.bat -ForceRefreshIni`
+2. **Inspect the client `bin`** (the path in **`client_path.local.txt`**) — confirm **`ExeFile.exe`**, **`start.ini`**, **`common.ini`**, and **`blue.dll`** (after [blue_patcher](https://github.com/bluepatcher/blue_patcher)).
+3. If **`common.ini`** exists, confirm **`cryptoPack=Placebo`** (not **`CryptoAPI`**).
+4. After launch, **Task Manager** — if **`ExeFile.exe`** flashes and exits, treat as startup crash (wrong/incomplete tree, crypto, or MSVC runtime).
+5. Open **`start.ini`** in that **`bin`** — expect **`server=127.0.0.1`**, **`port=`** / **`proxyport=`** matching your isolated host ports (default **26100** / **26101**).
+6. **Stack up** — `Test-NetConnection 127.0.0.1 -Port 26100` and **26101** should succeed before you rely on login.
+7. **`Launch_EVEmu_Isolated.ps1 -ValidateOnly`** — prints **`common.ini`** / **client bin** hints (e.g. missing **`blue.dll`**).
+
+### Example diagnostic (this repo’s typical `client_path`)
+
+On a host where **`client_path.local.txt`** pointed at **`...\eveonline_360229_2of2\bin`**: **`common.ini`** was **absent**, **`blue.dll`** was **absent**, **`ExeFile.exe`** was present, **`start.ini`** was launcher-correct, and **26100/26101** were **open** — i.e. **network OK, client tree incomplete**, not a launcher bug.
+
+Entry points: **`Launch_EVEmu_Isolated.ps1`**, **`Restore_EVEmu_Isolated_Client.ps1`** (same behavior as the `.bat` wrappers).
 
 ## One-time setup
 

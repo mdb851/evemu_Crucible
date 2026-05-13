@@ -80,6 +80,19 @@ function Write-StartIniNoBom([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
 }
 
+function Test-ClientBinReadiness([string]$ClientRoot) {
+    $notes = @()
+    $blueDll = Join-Path $ClientRoot 'blue.dll'
+    if (-not (Test-Path -LiteralPath $blueDll)) {
+        $notes += 'blue.dll missing in bin (expected after blue_patcher; without it this is not a patched EVEmu client layout).'
+    }
+    $commonIni = Join-Path $ClientRoot 'common.ini'
+    if (-not (Test-Path -LiteralPath $commonIni)) {
+        $notes += 'common.ini missing in bin (ship with client; then edit cryptoPack per blue_patcher README).'
+    }
+    return $notes
+}
+
 function Test-CommonIniPlacebo([string]$ClientRoot) {
     $commonIni = Join-Path $ClientRoot 'common.ini'
     if (-not (Test-Path -LiteralPath $commonIni)) {
@@ -141,6 +154,9 @@ if ($ValidateOnly) {
     Write-Host "  State file:  $StatePath (exists=$(Test-Path -LiteralPath $StatePath))"
     $p = Test-CommonIniPlacebo $clientRoot
     Write-Host "  $($p.Detail)"
+    foreach ($n in (Test-ClientBinReadiness $clientRoot)) {
+        Write-Host "  Client bin: $n"
+    }
     exit 0
 }
 
@@ -155,6 +171,9 @@ if (Test-Path -LiteralPath $StatePath) {
     }
     if ($prev.ClientRoot -ne $clientRoot) {
         throw "Active isolated session for different client root: '$($prev.ClientRoot)'. Run Restore_Normal_Client.bat first."
+    }
+    foreach ($n in (Test-ClientBinReadiness $clientRoot)) {
+        Write-LaunchLog "WARNING: $n"
     }
     $placebo = Test-CommonIniPlacebo $clientRoot
     if (-not $placebo.Ok) {
@@ -181,6 +200,10 @@ if ($hadOriginal) {
     Write-LaunchLog "Backed up existing start.ini to: $backupOriginal"
 } else {
     Write-LaunchLog "No existing start.ini; creating one for isolated use."
+}
+
+foreach ($n in (Test-ClientBinReadiness $clientRoot)) {
+    Write-LaunchLog "WARNING: $n"
 }
 
 $placebo = Test-CommonIniPlacebo $clientRoot
