@@ -46,6 +46,22 @@ Do this **in order**:
 
 On a host where **`client_path.local.txt`** pointed at **`...\eveonline_360229_2of2\bin`**: **`common.ini`** was **absent**, **`blue.dll`** was **absent**, **`ExeFile.exe`** was present, **`start.ini`** was launcher-correct, and **26100/26101** were **open** — i.e. **network OK, client tree incomplete**, not a launcher bug.
 
+## Workarounds (no full reinstall)
+
+### A — You already have a merged tree
+
+If you have a folder like **`EVE_360229_MERGED`** with **`bin\ExeFile.exe`**, **`bin\blue.dll`**, **`common.ini`** one level above **`bin`**, and **`cryptoPack=Placebo`**: put that **`bin`** path in **`client_path.local.txt`**, then **`Restore_Normal_Client.bat`** → **`Launch_EVEmu_Isolated.bat -ForceRefreshIni`**.
+
+### B — Split `1of2` / `2of2` archives only
+
+CCP layout often puts **`common.ini`** in **`...\eveonline_360229_2of2\`** (parent of **`bin`**), not inside **`bin`**, and **`blue.dll`** ships in **`...\eveonline_360229_1of2\bin`**. The launcher now resolves **`common.ini`** in **bin or parent**; **`blue.dll`** must still be next to **`ExeFile.exe`**.
+
+One-click repair (copies **`blue.dll`** from sibling **`..._1of2\bin`**, sets **`cryptoPack=Placebo`**, backs up **`*.bak_evemu`**):
+
+* **`Fix_Split_Crucible_Client.bat`** (or **`Fix_Split_Crucible_Client.ps1`**, optional **`-BinPath '...\2of2\bin'`**, **`-WhatIf`** to preview)
+
+Then **`Restore_Normal_Client.bat`** → **`Launch_EVEmu_Isolated.bat -ForceRefreshIni`**.
+
 Entry points: **`Launch_EVEmu_Isolated.ps1`**, **`Restore_EVEmu_Isolated_Client.ps1`** (same behavior as the `.bat` wrappers).
 
 ## One-time setup

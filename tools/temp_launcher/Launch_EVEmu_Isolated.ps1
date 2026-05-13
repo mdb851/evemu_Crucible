@@ -80,32 +80,40 @@ function Write-StartIniNoBom([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
 }
 
+function Get-ResolvedCommonIniPath([string]$ClientRoot) {
+    $inBin = Join-Path $ClientRoot 'common.ini'
+    if (Test-Path -LiteralPath $inBin) { return $inBin }
+    $installRoot = Split-Path -Parent $ClientRoot
+    $inParent = Join-Path $installRoot 'common.ini'
+    if (Test-Path -LiteralPath $inParent) { return $inParent }
+    return $null
+}
+
 function Test-ClientBinReadiness([string]$ClientRoot) {
     $notes = @()
     $blueDll = Join-Path $ClientRoot 'blue.dll'
     if (-not (Test-Path -LiteralPath $blueDll)) {
-        $notes += 'blue.dll missing in bin (expected after blue_patcher; without it this is not a patched EVEmu client layout).'
+        $notes += 'blue.dll missing in bin (must sit next to ExeFile). If you only opened the 2of2 archive half, copy blue.dll from eveonline_360229_1of2\bin or use Fix_Split_Crucible_Client.ps1 / a merged EVE_360229_MERGED install.'
     }
-    $commonIni = Join-Path $ClientRoot 'common.ini'
-    if (-not (Test-Path -LiteralPath $commonIni)) {
-        $notes += 'common.ini missing in bin (ship with client; then edit cryptoPack per blue_patcher README).'
+    if (-not (Get-ResolvedCommonIniPath $ClientRoot)) {
+        $notes += 'common.ini not found in bin or in the folder above bin (CCP layout: installroot\common.ini).'
     }
     return $notes
 }
 
 function Test-CommonIniPlacebo([string]$ClientRoot) {
-    $commonIni = Join-Path $ClientRoot 'common.ini'
-    if (-not (Test-Path -LiteralPath $commonIni)) {
-        return @{ Ok = $false; Detail = "common.ini not found next to ExeFile (expected in bin after blue_patcher)." }
+    $commonIni = Get-ResolvedCommonIniPath $ClientRoot
+    if (-not $commonIni) {
+        return @{ Ok = $false; Detail = 'common.ini not found in bin or install parent (folder above bin).' }
     }
     $txt = Get-Content -LiteralPath $commonIni -Raw
     if ($txt -match '(?im)^\s*cryptoPack\s*=\s*Placebo\s*$') {
-        return @{ Ok = $true; Detail = "common.ini lists cryptoPack=Placebo." }
+        return @{ Ok = $true; Detail = "common.ini OK ($commonIni): cryptoPack=Placebo." }
     }
     if ($txt -match '(?im)^\s*cryptoPack\s*=\s*CryptoAPI\s*$') {
-        return @{ Ok = $false; Detail = "common.ini still has cryptoPack=CryptoAPI. Run blue_patcher and set cryptoPack=Placebo (see blue_patcher README)." }
+        return @{ Ok = $false; Detail = "common.ini ($commonIni) still has cryptoPack=CryptoAPI. Set Placebo (see blue_patcher README) or run Fix_Split_Crucible_Client.ps1." }
     }
-    return @{ Ok = $false; Detail = "common.ini found but cryptoPack=Placebo not detected; verify blue_patcher README." }
+    return @{ Ok = $false; Detail = "common.ini ($commonIni): cryptoPack=Placebo not detected; verify blue_patcher README." }
 }
 
 function Ensure-StartIniContent([int]$game, [int]$proxy) {
