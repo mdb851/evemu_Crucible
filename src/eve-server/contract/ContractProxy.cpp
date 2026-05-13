@@ -739,32 +739,7 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
 
                 // Then, we go for acceptance
                 if (iskRequirementMet && rewardRequirementMet && requestedItemsRequirementsMet) {
-                    // If we have a reward value - then contract's WTB
-                    if (reward > 0) {
-                        AccountService::TransferFunds(issuerWalletID,
-                                                      acceptorItemOwnerID,
-                                                      reward,
-                                                      "Payment for accepted contract",
-                                                      Journal::EntryType::ContractReward,
-                                                      contractID->value(),
-                                                      issuerMoneyKey,
-                                                      acceptorMoneyKey,
-                                                      call.client);
-                    }
-
-                    // If we have price value - then contract's WTS
-                    if (price > 0) {
-                        AccountService::TransferFunds(acceptorItemOwnerID,
-                                                      issuerWalletID,
-                                                      price,
-                                                      "Payment for accepted contract",
-                                                      Journal::EntryType::ContractPrice,
-                                                      contractID->value(),
-                                                      acceptorMoneyKey,
-                                                      issuerMoneyKey,
-                                                      call.client);
-                    }
-
+                    // Inventory first, then ISK — avoids partial settlement if requested/traded item steps fail or return early
                     // Then, we go for requested items
                     if (!requestedItems.empty()) {
                         for (auto entry : requestedItems) {
@@ -807,6 +782,32 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                             }
                             tRef->ChangeOwner(acceptorItemOwnerID, true);
                         }
+                    }
+
+                    // If we have a reward value - then contract's WTB
+                    if (reward > 0) {
+                        AccountService::TransferFunds(issuerWalletID,
+                                                      acceptorItemOwnerID,
+                                                      reward,
+                                                      "Payment for accepted contract",
+                                                      Journal::EntryType::ContractReward,
+                                                      contractID->value(),
+                                                      issuerMoneyKey,
+                                                      acceptorMoneyKey,
+                                                      call.client);
+                    }
+
+                    // If we have price value - then contract's WTS
+                    if (price > 0) {
+                        AccountService::TransferFunds(acceptorItemOwnerID,
+                                                      issuerWalletID,
+                                                      price,
+                                                      "Payment for accepted contract",
+                                                      Journal::EntryType::ContractPrice,
+                                                      contractID->value(),
+                                                      acceptorMoneyKey,
+                                                      issuerMoneyKey,
+                                                      call.client);
                     }
 
                     // Once all manipulations are done, we update contract status. Response is sent outside the switch clause;
