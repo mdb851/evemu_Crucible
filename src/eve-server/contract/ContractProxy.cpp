@@ -656,11 +656,15 @@ PyResult ContractProxy::CreateContract(PyCallArgs &call,
 
         // We only insert volume for courier-type contracts - the other types don't use this value.
         if (contractType->value() == 3) {
-            DBerror err;
-            if (!sDatabase.RunQuery(err,
+            DBerror volErr;
+            if (!sDatabase.RunQuery(volErr,
                                     "UPDATE ctrContracts SET volume = %f WHERE contractId = %u", totalVolume, contractId))
             {
-                codelog(DATABASE__ERROR, "Failed to update contract volume: %s", err.c_str());
+                codelog(DATABASE__ERROR, "Failed to update contract volume: %s", volErr.c_str());
+                RollbackCreateContractAfterInsert(call.client, contractId, contractType->value(),
+                    static_cast<uint32>(reward->value()), forCorp, corpSccEscrowDone,
+                    itemsMovedToContractEscrow, expectedTradedOwnerRollback, issuerMoneyKeyRollback);
+                return nullptr;
             }
         }
 
