@@ -1,38 +1,71 @@
 # EVEmu Crucible Restoration State
 
-## Release-blocker matrix (May 2026)
+## Release-candidate freeze (`restoration/contract-accept-corp`)
 
-Each area is placed in **exactly one** primary bucket (use **5** only for legacy-data rows):
+**Frozen for validation-prep as of:** 2026-05-13. **HEAD:** **`9ddbfac309db942ba8dd493ecb61aa235f0f579c`** (includes **`823dae9f`** CreateContract traded-item rollback/null-guards, **`a35a6417`** courier **`volume` UPDATE** rollback, **`9ddbfac3`** Tier-1 **`AcceptContract` / `CompleteContract`** hardening). **Policy:** no further code churn on this branch except a **release-critical** defect discovered during validation; otherwise advance **live proof**, **design/feature** backlog, or **legacy-data** ops only.
+
+**Operators — isolated stack:** `docker compose -f docker-compose.isolated.yml -p evemu_iso build server` → `docker compose -f docker-compose.isolated.yml -p evemu_iso up -d --force-recreate server` → **`docker logs evemu_isolated_server`** must show **EVEmu Server is Online**. Host **26100** / **26101** → container **26000** / **26001**.
+
+## Final completion matrix (release-candidate)
+
+Each area is in **exactly one** bucket (**5** = legacy-data only):
 
 1. **PASS**
-2. **Code-side fixed, live proof pending**
-3. **Dangerous remaining code-side risk**
+2. **Code-side fixed / live proof pending**
+3. **Dangerous code-side risk remaining**
 4. **Missing feature / design work**
 5. **Legacy-data risk**
 
 | Area | Bucket | Notes |
 |------|:------:|-------|
-| **Isolated Docker stack** (`evemu_iso` / `evemu_isolated_server`) | **1** | `docker compose … build server` **PASS**; `up -d --force-recreate server` → logs **EVEmu Server is Online** (May 2026 triage). |
-| **Contracts** (create / accept / delete / complete / courier) | **2** | `forCorp` / SCC / delete-complete routing; **`CreateContract`** rollback family; **`AcceptContract`** item-exchange station + **`Split`** null-guards, inventory-before-ISK; **courier accept** null-safe solar names, plastic-wrap spawn failure **collateral rollback**, skip **`itemID==0`**; **`CompleteContract`** courier delivery null-safe end-station name + **`GetItemRef`** guard before handoff — **live** smoke still open. |
-| **Market** (personal) | **2** | Self-buy block, modify/cancel escrow direction, split-failure log safety — **live** wallet/journal proof pending. |
-| **Corp market** | **2** | Division `accountKey`, `flagCorpMarket` deliveries, `ExecuteSellOrder` / `ExecuteBuyOrder` / `OnOwnOrderChanged` corp paths — **live** proof pending. |
-| **Corp courier** | **2** | `acceptorCorpID` + `acceptorWalletKey` persistence, `ValidateCorpCourierAcceptSession`, reward/collateral ledger legs — **live** corp-hop smoke pending. |
-| **Auction** | **4** | `PlaceBid` / `FinishAuction` only in commented client snippets — **no** bound RPC handlers. |
-| **Expiry** (contracts / orders) | **4** | No background expiry job; `GetMyExpiredContractList` returns **`nullptr`**; refunds depend on explicit **delete** / **complete** paths. |
-| **`CompleteContract` (non-4/7 status codes)** | **4** | Server paths wired for known completion/reject statuses only; broader client status matrix needs **live trace** before safe expansion. |
-| **Inventory / ownership / delivery** | **2** | Corp sell cancel → corp deliveries; `DeleteContract` restores **persisted** `issuerCorpID`; accept traded/requested **`ChangeOwner`** paths hardened. |
-| **Runtime crash safety** | **2** | Station/item enumeration, certificates, dogma ammo load, contract accept/complete **`GetStationRef`/`GetSolarSystemRef`/`Split`/`SpawnItem`** guards; exhaustive audit of all `GetItemRef`→`->` sites not claimed. |
-| **Transaction / accounting safety** | **2** | Corp/personal market settlement refactors merged. **`TransferFunds`** **throws** on failure — if it throws **after** inventory mutations, items/ISK could still diverge (ordering mitigates the common item-exchange accept case). |
-| **CreateContract** (traded items path) | **2** | Null-guarded **`GetStationRef`** / station **`GetByID`** / **`GetItemRef`**; post-`ctrContracts` failures call **`RollbackCreateContractAfterInsert`** (return items from escrow owner **1**, reverse corp SCC courier reward + personal reward pre-debit, **DELETE** `ctrItems` then **`ctrContracts`**), including failed courier **`volume` UPDATE** after **`ctrItems`** insert. **Residual:** **`TransferFunds`** exception after partial item moves. |
-| **Corp courier reward (pre-SCC DB rows)** | **5** | **Legacy-data risk** — `forCorp` courier **reward** rows created before SCC escrow migration; completion/delete assume SCC holds escrow (manual fix / recreate). |
+| **Isolated Docker stack** (`evemu_iso` / `evemu_isolated_server`) | **1** | Image **build PASS**; container reaches **EVEmu Server is Online** after recreate (operator check at freeze). |
+| **Contracts** (create / accept / delete / complete / courier) | **2** | **`CreateContract`:** traded-item **`RollbackCreateContractAfterInsert`** + null-guards + courier **volume** column **UPDATE** rollback; **`AcceptContract`:** item-exchange **inventory-before-ISK**, station/**`Split`**/requested-stack guards, courier **solar-system** names + **plastic-wrap spawn** failure **`RollbackCourierAcceptCollateral`**, skip **`itemID==0`** in crate fill; **`CompleteContract`:** courier handoff **`GetItemRef`** guard + null-safe wrong-station message; corp/SCC/delete/complete wiring per prior evidence — **live** contract matrix still required. |
+| **Market** (personal) | **2** | Self-buy block, modify/cancel escrow, split-failure log safety — **live** wallet + journal proof pending. |
+| **Corp market** | **2** | Division **`accountKey`**, **`flagCorpMarket`** deliveries, **`ExecuteSellOrder`** / **`ExecuteBuyOrder`** / **`OnOwnOrderChanged`** corp paths — **live** proof pending. |
+| **Corp courier** | **2** | **`acceptorCorpID`** + **`acceptorWalletKey`**, **`ValidateCorpCourierAcceptSession`**, reward/collateral legs — **live** corp-hop + session-guard proof pending. |
+| **Auction** | **4** | **`PlaceBid`** / **`FinishAuction`** comment-only — **no** bound RPC handlers. |
+| **Expiry** (contracts / orders) | **4** | No expiry job; **`GetMyExpiredContractList`** → **`nullptr`**; refunds via explicit delete/complete paths only. |
+| **`CompleteContract` (status codes beyond 4 / 7)** | **4** | Needs **live trace** before expanding server handling. |
+| **Inventory / ownership / delivery** | **2** | Corp sell cancel → corp deliveries; **`DeleteContract`** restores persisted **`issuerCorpID`** — **live** proof pending. |
+| **Runtime crash safety** | **2** | **`GetItemsInStation`**, certificates, dogma ammo load, contract accept/complete guards (station / solar / split / spawn) — not an exhaustive global **`GetItemRef`→`->`** audit. |
+| **Transaction / accounting safety** | **2** | Market + corp settlement refactors merged; item-exchange accept ordering reduces partial ISK risk — **live** journal proof pending. |
+| **Cross-cutting residual** (non-transactional boundaries) | **3** | **`TransferFunds`** may **throw** after partial inventory mutation on some paths; **courier accept** may leave state if **`UPDATE ctrContracts`** fails **after** plastic-wrap / moves (logged, not auto-rolled back) — **narrow**; address with **transactional design**, not ad-hoc patches this freeze. |
+| **Corp courier reward (pre-SCC DB rows)** | **5** | **`forCorp`** courier **reward** rows created **before** SCC escrow migration — completion/delete may not balance SCC; **manual** fix / recreate. |
 
-**Bucket legend:** **(1) PASS** — verified or explicitly out of scope. **(2) Code-side fixed, live proof pending** — merged logic; needs client + DB smoke. **(3) Dangerous remaining code-side risk** — can corrupt wallets/items or crash without careful harness. **(4) Missing feature / design work** — needs design or large implementation; do not invent in hotfix passes. **(5) Legacy-data risk** — historical rows / migrations; document and handle out-of-band.
+**Bucket legend:** **(1) PASS** — verified in scope. **(2) Code-side fixed / live proof pending** — merged; needs Crucible client + DB smoke. **(3) Dangerous code-side risk remaining** — material without harness (here: **documented narrow residual** only). **(4) Missing feature / design work** — needs design or sizeable implementation. **(5) Legacy-data risk** — historical rows; out-of-band handling.
+
+## Release validation checklist (operator / client)
+
+Use **isolated** stack if default **26000** is taken (**26100** client port). Capture **server log** snippet on failure.
+
+**Contracts (general)**  
+1. **Create item-exchange (personal):** station item list opens with **no SIGSEGV**; accept with price/reward moves **ISK after** items (no orphan ISK on forced failure paths tested in harness if available).  
+2. **Create `forCorp` item-exchange** with corp-owned items: **`ctrItems`** populated; **delete outstanding** returns items to **corp** (`issuerCorpID`), not CEO hangar.  
+3. **Courier (personal issuer, reward > 0):** create debits wallet; **delete outstanding** refunds; **accept** → **complete** at end station pays reward/collateral symmetry (journal spot-check).  
+4. **Courier (`forCorp` issuer, reward > 0):** create debits **corp division** → SCC; **complete** pays from SCC; **delete** refunds from SCC (journal).  
+5. **Corp courier accept:** accept-for-corp then **change corporation** before complete/fail → expect **blocked** notify (session corp ≠ persisted **`acceptorCorpID`**).  
+6. **Legacy caveat:** if any **`forCorp` courier + reward** row **predates** SCC escrow migration, expect **SCC balance / journal** anomalies — **do not treat as regression**; fix data or recreate contract.
+
+**Market (personal)**  
+7. **Self-buy:** immediate buy of own sell → **rejected**, no double booking.  
+8. **Modify:** buy/sell order modify up/down → **wallet + journal** match expected escrow direction.
+
+**Corp market**  
+9. **Corp buy** modify/cancel → ISK on **corp division** from **`mktOrders.accountKey`**, not personal wallet.  
+10. **Corp immediate buy** (`duration==0`) from sell order → debit **corp division**; items in **corp market deliveries**.  
+11. **Corp sell** into buy order → payment to **corp division**; buyer **`OnOwnOrderChanged`** (incl. corp buyer).  
+12. **Cancel corp sell** → quantity returns to **`flagCorpMarket`** at order owner corp, **not** personal hangar.
+
+**Regression sanity**  
+13. Re-run **(1)**–**(6)** after any DB restore from backup **without** post-migration courier rows.
+
+---
 
 ## RESTORATION SLICE RESULT (latest)
 
 **Slice:** Baseline verify — contract `GetItemsInStation` crash guard, `CreateContract` forCorp traded-item owner + **corp courier reward lifecycle (create / complete / delete)**, market self-buy block, market modify escrow direction, corp market cancel sell delivery, eve-core Buffer/Deflate compile hygiene
 
-**Status:** PARTIAL — all listed fixes **present on branch**; `docker compose build server` **PASS** at HEAD; **live** contract item-select / market self-buy / modify wallet matrix **not re-run** this session (no client harness here). **Isolated Docker stack** is **runnable** without touching the legacy `db`/`server` containers: use **`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d`** (host ports **26100** / **26101** → container **26000** / **26001**; containers **`evemu_isolated_db`** / **`evemu_isolated_server`**). Verified **May 12, 2026:** `evemu_isolated_server` **running**, logs show **"EVEmu Server is Online"** and main loop after first-boot SQL migrations.
+**Status:** **Release-candidate freeze** — **May 13, 2026** — all listed fixes **present on branch** at **`9ddbfac309db942ba8dd493ecb61aa235f0f579c`**; **code-side** work paused except **release-critical** validation finds. `docker compose build server` **PASS** at HEAD (prior session). **Isolated Docker stack** verified **May 13, 2026:** `docker compose -f docker-compose.isolated.yml -p evemu_iso build server` **PASS**; `up -d --force-recreate server` → **`evemu_isolated_server`** log **EVEmu Server is Online**. **Live** contract / market / corp matrix still **operator-owned** (see **Release validation checklist** above). Host **26100** / **26101** → container **26000** / **26001** when default **26000**–**26001** is taken.
 
 **Evidence (commits on `restoration/contract-accept-corp`):**
 - **`cf7dcd40`** — `fix: guard contract station item enumeration from null crash` (`ContractProxy::GetItemsInStation` tuple vs bound station id, null guards, hangar list owner filter).
@@ -58,7 +91,7 @@ Each area is placed in **exactly one** primary bucket (use **5** only for legacy
 
 **Remaining risk (corp courier reward):** outstanding **`forCorp` courier contracts with `reward > 0` created before the SCC escrow slice** did not move ISK to SCC at create; **completion** and **delete refund** both pull from SCC — those rows may fail or need manual adjustment / re-create (no DB flag added).
 
-**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). **`docker compose -f docker-compose.isolated.yml -p evemu_iso build server`** — **PASS** (May 12, 2026 after **final Tier 1 `ContractProxy` accept/complete hardening**); **`docker compose … up -d --force-recreate server`** — **PASS** (`evemu_isolated_server` log: **EVEmu Server is Online**). Default `docker compose up -d` still conflicts when global names **`db`**/**`server`** or ports **26000**–**26001** are taken (unchanged; other stack untouched).
+**Commands run:** `docker compose build server` from repo root — **PASS** (May 12, 2026; re-run **PASS** after `fc340077`). **`docker compose -f docker-compose.isolated.yml -p evemu_iso build server`** — **PASS** (May 12, 2026 after Tier 1 `ContractProxy` accept/complete hardening; **May 13, 2026** RC freeze re-run **PASS**). **`docker compose -f docker-compose.isolated.yml -p evemu_iso up -d --force-recreate server`** — **PASS** May 13, 2026 (`evemu_isolated_server` log: **EVEmu Server is Online**). Default `docker compose up -d` still conflicts when global names **`db`**/**`server`** or ports **26000**–**26001** are taken (unchanged; other stack untouched).
 
 **Client task required:** YES — (1) contract create → item station list → no SIGSEGV, (2) immediate buy own sell → error, no double wallet booking, (3) sell/buy order modify up/down → wallet + journal match expected escrow direction, (4) **corp buy** modify/cancel → ISK moves on **corp division** from **`mktOrders.accountKey`**, not personal wallet, (5) **corp immediate buy** (`duration==0`) from sell order → debit **corp division**, items appear in **corp market deliveries**, (6) **corp sell** into buy order → payment credits **corp division**; **buyer’s** order UI refreshes (incl. **corp** buy order **`OnOwnOrderChanged`**), (7) **cancel corp sell order** → items return to **corp market deliveries**, not personal hangar, (8) **`forCorp` contract create** with items owned by the **corporation** → **`ctrItems`** lists those items (not empty / silent skip), (9) **delete outstanding `forCorp` contract** → escrowed/traded items **`ChangeOwner`** back to the **corporation**, not the CEO’s personal hangar, (10) **`forCorp` courier** with **reward** → corp division debited at create (→ SCC); on **successful delivery**, reward paid **from SCC** to acceptor (corp or personal), not a second pull from issuer division.
 

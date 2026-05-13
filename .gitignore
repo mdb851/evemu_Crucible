@@ -12,6 +12,7 @@ Desktop.ini
 *.user
 
 # Build results
+build-test/
 [Dd]ebug/
 [Rr]elease/
 *_i.c
