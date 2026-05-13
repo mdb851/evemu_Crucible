@@ -1347,7 +1347,7 @@ PyResult ContractProxy::CollectMyPageInfo(PyCallArgs &call) {
     DBQueryResult res;
     if (!sDatabase.RunQuery(res, outstandingContractsQuery.c_str()))
     {
-        codelog(DATABASE__ERROR, "Error in mainQuery: %s", res.error.c_str());
+        codelog(DATABASE__ERROR, "Error in outstandingContractsQuery: %s", res.error.c_str());
         return nullptr;
     }
     DBResultRow row;
