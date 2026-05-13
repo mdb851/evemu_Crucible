@@ -19,6 +19,8 @@ Confirm logs: **`EVEmu Server is Online`**.
 
 The launch **`.bat` keeps the window open** and prints the last lines of **`backup\launcher_last_run.log`** so a successful run does not look like “nothing happened.”
 
+From **PowerShell**, run batch files in the current folder with **`.\`** (e.g. **`.\Launch_EVEmu_Isolated.bat`**) — bare **`Launch_...`** is not on `PATH`.
+
 ### If the game still does not appear
 
 1. **blue_patcher** ([README](https://raw.githubusercontent.com/bluepatcher/blue_patcher/master/README.md)): **`common.ini`** in the same **`bin`** folder must have **`cryptoPack=Placebo`** (not `CryptoAPI`). Run **`Launch_EVEmu_Isolated.ps1 -ValidateOnly`** — it reports `common.ini` status.
@@ -75,7 +77,7 @@ Entry points: **`Launch_EVEmu_Isolated.ps1`**, **`Restore_EVEmu_Isolated_Client.
 
 ## What it changes
 
-- In your **client `bin` folder only**: writes **`start.ini`** with **`[main]`** (`server=127.0.0.1`, `port=`), **`[app]`**, **`[localization]`**, and **`[machoNet]`** (`address` / `port` / `proxyport`) — aligned with **blue_patcher** (replace `server=Tranquility`, not only machoNet). File is written as **UTF-8 without BOM** (BOM can break the client INI reader).
+- In your **client `bin` folder only**: writes **`start.ini`** with **`[main]`** (`server=127.0.0.1`, `port=`), **`[app]`**, **`[localization]`**, and **`[machoNet]`** (`address` / `port` / `proxyport`) — aligned with **blue_patcher** (replace `server=Tranquility`, not only machoNet). File is written as **UTF-8 without BOM** (BOM can break the legacy INI reader). **`ExeFile.exe`** is started with **working directory = install root** (folder **above** `bin` when that folder contains **`res\`**) so split / merged trees match how the client expects to resolve data.
 - In **`tools\temp_launcher\backup\`** (local, gitignored):
   - **`start.ini.original`** — copy of your previous `start.ini` if one existed.
   - **`isolated_launcher_state.json`** — marks an active “session” so relaunch does not re-backup.

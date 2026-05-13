@@ -145,6 +145,18 @@ proxyport=$proxy
 "@
 }
 
+function Get-ExeFileWorkingDirectory([string]$BinRoot) {
+    if ([string]::IsNullOrWhiteSpace($BinRoot)) { return $BinRoot }
+    $parent = Split-Path -Parent $BinRoot
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        $res = Join-Path $parent 'res'
+        if (Test-Path -LiteralPath $res) {
+            return $parent
+        }
+    }
+    return $BinRoot
+}
+
 $clientRoot = Read-ClientRoot
 $exefile = Get-ClientExePath $clientRoot
 $startIni = Join-Path $clientRoot 'start.ini'
@@ -153,11 +165,14 @@ if (-not $exefile) {
     throw "No ExeFile.exe / exefile.exe found under '$clientRoot'. Fix client_path.local.txt (see client_path.example.txt)."
 }
 
+$exeWorkDir = Get-ExeFileWorkingDirectory $clientRoot
+
 if ($ValidateOnly) {
     Write-Host "ValidateOnly: OK"
     Write-Host "  Client root: $clientRoot"
     Write-Host "  Client exe:  $exefile"
     Write-Host "  start.ini:   $startIni (exists=$(Test-Path -LiteralPath $startIni))"
+    Write-Host "  Exe cwd:     $exeWorkDir (parent if it contains res\, else bin)"
     Write-Host "  Target:      127.0.0.1  game=$PortGame  proxy=$PortProxy"
     Write-Host "  State file:  $StatePath (exists=$(Test-Path -LiteralPath $StatePath))"
     $p = Test-CommonIniPlacebo $clientRoot
@@ -193,8 +208,8 @@ if (Test-Path -LiteralPath $StatePath) {
         Write-LaunchLog "ForceRefreshIni: rewriting start.ini from template (UTF-8 no BOM)."
         Write-StartIniNoBom $startIni (Ensure-StartIniContent $PortGame $PortProxy)
     }
-    Write-LaunchLog "Isolated session already active; launching again: $exefile"
-    $proc = Start-Process -FilePath $exefile -WorkingDirectory $clientRoot -PassThru
+    Write-LaunchLog "Isolated session already active; launching again: $exefile (cwd=$exeWorkDir)"
+    $proc = Start-Process -FilePath $exefile -WorkingDirectory $exeWorkDir -PassThru
     Write-LaunchLog "Start-Process returned PID=$($proc.Id) Name=$($proc.ProcessName)"
     Write-LaunchLog "If no window appeared, check Task Manager for ExeFile/eve, or read: $LogPath"
     exit 0
@@ -237,9 +252,9 @@ $json = $state | ConvertTo-Json -Depth 5
 Write-StartIniNoBom $StatePath $json
 
 Write-LaunchLog "Wrote isolated start.ini (127.0.0.1:$PortGame / proxy $PortProxy)."
-Write-LaunchLog "Launching: $exefile"
+Write-LaunchLog "Launching: $exefile (cwd=$exeWorkDir)"
 try {
-    $proc = Start-Process -FilePath $exefile -WorkingDirectory $clientRoot -PassThru
+    $proc = Start-Process -FilePath $exefile -WorkingDirectory $exeWorkDir -PassThru
     Write-LaunchLog "Start-Process returned PID=$($proc.Id) Name=$($proc.ProcessName)"
 } catch {
     Write-LaunchLog "Start-Process failed: $($_.Exception.Message)"
