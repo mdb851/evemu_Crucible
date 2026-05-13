@@ -230,11 +230,20 @@ PyResult DogmaIMBound::LoadAmmoToModules(PyCallArgs& call, PyInt* shipID, PyList
 
     // Get Reference to Ship and Charge
     ShipItemRef sRef = call.client->GetShip();
-    GenericModule* pMod = sRef->GetModule(sItemFactory.GetItemRef(moduleIDs[0])->flag());
+    InventoryItemRef mRef = sItemFactory.GetItemRef(moduleIDs[0]);
+    if (mRef.get() == nullptr) {
+        _log(MODULE__WARNING, "DogmaIMBound::Handle_LoadAmmoToModules(): module item %d not found.", moduleIDs[0]);
+        throw UserError ("ModuleNoLongerPresentForCharges");
+    }
+    GenericModule* pMod = sRef->GetModule(mRef->flag());
     if (pMod == nullptr)
         throw UserError ("ModuleNoLongerPresentForCharges");
 
     InventoryItemRef cRef = sItemFactory.GetItemRef(itemID->value());
+    if (cRef.get() == nullptr) {
+        _log(MODULE__WARNING, "DogmaIMBound::Handle_LoadAmmoToModules(): charge item %u not found.", itemID->value());
+        throw UserError ("CantFindChargeToAdd");
+    }
     sRef->LoadCharge(cRef, pMod->flag());
 
     // returns nodeID and timestamp
@@ -280,7 +289,12 @@ PyResult DogmaIMBound::LoadAmmoToBank(PyCallArgs& call, PyInt* shipID, PyInt* ma
         sLog.Error("DogmaIMBound::Handle_LoadAmmoToBank()", "passed shipID %u != current shipID %u.", shipID->value(), sRef->itemID() );
 
     // if shipID passed in call isnt active ship (from client->GetShip()), would this work right?
-    GenericModule* pMod = sRef->GetModule(sItemFactory.GetItemRef(masterID->value())->flag());
+    InventoryItemRef masterRef = sItemFactory.GetItemRef(masterID->value());
+    if (masterRef.get() == nullptr) {
+        _log(MODULE__WARNING, "DogmaIMBound::Handle_LoadAmmoToBank(): master module item %u not found.", masterID->value());
+        throw UserError ("ModuleNoLongerPresentForCharges");
+    }
+    GenericModule* pMod = sRef->GetModule(masterRef->flag());
     if (pMod == nullptr)
         throw UserError ("ModuleNoLongerPresentForCharges");
 
@@ -289,7 +303,12 @@ PyResult DogmaIMBound::LoadAmmoToBank(PyCallArgs& call, PyInt* shipID, PyInt* ma
     if (pMod->IsLinked()) {
         sRef->LoadLinkedWeapons(pMod, itemIDs);
     } else {
-        sRef->LoadCharge(sItemFactory.GetItemRef(itemIDs.at(0)), pMod->flag());
+        InventoryItemRef chargeRef = sItemFactory.GetItemRef(itemIDs.at(0));
+        if (chargeRef.get() == nullptr) {
+            _log(MODULE__WARNING, "DogmaIMBound::Handle_LoadAmmoToBank(): charge item %d not found.", itemIDs.at(0));
+            throw UserError ("CantFindChargeToAdd");
+        }
+        sRef->LoadCharge(chargeRef, pMod->flag());
     }
 
     // not sure why im not using this, as call is to load bank...
