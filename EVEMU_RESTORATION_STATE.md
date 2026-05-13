@@ -36,6 +36,8 @@ Each area is in **exactly one** bucket (**5** = legacy-data only):
 
 ## Release validation checklist (operator / client)
 
+**Full one-page worksheet** (setup, per-test record fields, non-bugs, re-engage rules, done-enough criteria, **markdown tick list**): [`EVEmu_RC_VALIDATION_CHECKLIST.md`](EVEmu_RC_VALIDATION_CHECKLIST.md).
+
 Use **isolated** stack if default **26000** is taken (**26100** client port). Capture **server log** snippet on failure.
 
 **Contracts (general)**  
