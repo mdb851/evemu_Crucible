@@ -18,6 +18,7 @@ Each area is placed in **exactly one** primary bucket:
 | **Corp courier** | **2** | `acceptorCorpID` + `acceptorWalletKey` persistence, `ValidateCorpCourierAcceptSession`, reward/collateral ledger legs — **live** corp-hop smoke pending. |
 | **Auction** | **4** | `PlaceBid` / `FinishAuction` only in commented client snippets — **no** bound RPC handlers. |
 | **Expiry** (contracts / orders) | **4** | No background expiry job; `GetMyExpiredContractList` returns **`nullptr`**; refunds depend on explicit **delete** / **complete** paths. |
+| **`CompleteContract` (non-4/7 status codes)** | **4** | Server paths wired for known completion/reject statuses only; broader client status matrix needs **live trace** before safe expansion. |
 | **Inventory / ownership / delivery** | **2** | Corp sell cancel → corp deliveries; `DeleteContract` restores **persisted** `issuerCorpID`; accept traded/requested **`ChangeOwner`** paths hardened. |
 | **Runtime crash safety** | **2** | Station/item enumeration, certificates, dogma ammo load, contract accept transfer null-guards; exhaustive audit of all `GetItemRef`→`->` sites not claimed. |
 | **Transaction / accounting safety** | **2** | Corp/personal market settlement refactors merged. **`TransferFunds`** **throws** on failure — if it throws **after** inventory mutations, items/ISK could still diverge (ordering mitigates the common item-exchange accept case). |
