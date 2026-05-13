@@ -173,6 +173,33 @@ void RollbackCreateContractAfterInsert(
         codelog(DATABASE__ERROR, "RollbackCreateContractAfterInsert: ctrContracts delete for %u: %s", contractId, err.c_str());
 }
 
+/** Reverse courier-accept collateral after a failed accept (corp: SCC → division; personal: refund wallet). */
+void RollbackCourierAcceptCollateral(Client* client, bool acceptorForCorp, double collateralAmount, uint16 acceptorMoneyKey, uint32 contractId)
+{
+    if (client == nullptr || collateralAmount <= 0.0)
+        return;
+    if (acceptorForCorp) {
+        try {
+            AccountService::TransferFunds(
+                corpSCC,
+                client->GetCorporationID(),
+                collateralAmount,
+                "Rollback courier accept collateral",
+                Journal::EntryType::ContractCollateralRefund,
+                contractId,
+                Account::KeyType::Cash,
+                acceptorMoneyKey,
+                client);
+        } catch (const std::exception& ex) {
+            codelog(SERVICE__ERROR, "RollbackCourierAcceptCollateral: corp reverse failed for contract %u: %s", contractId, ex.what());
+        } catch (...) {
+            codelog(SERVICE__ERROR, "RollbackCourierAcceptCollateral: corp reverse failed for contract %u", contractId);
+        }
+    } else {
+        client->AddBalance(collateralAmount);
+    }
+}
+
 } // namespace
 
 ContractProxy::ContractProxy () :
@@ -815,7 +842,18 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                 ContractUtils::GetContractItemIDs(contractID->value(), &tradedItems);
                 ContractUtils::GetRequestedItems(contractID->value(), &requestedItems);
 
-                Inventory* stationInv = sItemFactory.GetStationRef(startStationID)->GetMyInventory();
+                StationItemRef startStationRef = sItemFactory.GetStationRef(startStationID);
+                if (startStationRef.get() == nullptr) {
+                    codelog(SERVICE__ERROR, "%s: AcceptContract item-exchange start station %d not loaded.", GetName(), startStationID);
+                    call.client->SendNotifyMsg("Contract start station is not available.");
+                    return nullptr;
+                }
+                Inventory* stationInv = startStationRef->GetMyInventory();
+                if (stationInv == nullptr) {
+                    codelog(SERVICE__ERROR, "%s: AcceptContract item-exchange station %d has no inventory.", GetName(), startStationID);
+                    call.client->SendNotifyMsg("Contract start station is not available.");
+                    return nullptr;
+                }
 
                 // Next, we perform checks to make sure we fit all contract requirements. I won't do it by nesting if loops - i'll just use trigger booleans;
                 bool iskRequirementMet(true), rewardRequirementMet(true), requestedItemsRequirementsMet(true);
@@ -862,7 +900,13 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                             }
                             if (stackRef->quantity() > entry.second) {
                                 // If located stack contains more than we need, we split it and transfer the required amount.
-                                stackRef->Split(entry.second)->ChangeOwner(issuerWalletID, true);
+                                InventoryItemRef splitRef = stackRef->Split(entry.second);
+                                if (splitRef.get() == nullptr) {
+                                    codelog(SERVICE__ERROR, "%s: AcceptContract Split failed for entity %d.", GetName(), entityID);
+                                    call.client->SendNotifyMsg("Could not prepare requested items for transfer.");
+                                    return nullptr;
+                                }
+                                splitRef->ChangeOwner(issuerWalletID, true);
                             } else {
                                 // If not - we simply transfer it to issuer.
                                 InventoryItemRef entRef = sItemFactory.GetItemRef(entityID);
@@ -986,21 +1030,33 @@ PyResult ContractProxy::AcceptContract(PyCallArgs &call, PyInt* contractID, std:
                  * - Update contract entry - move it to In Progress and leave a time-stamp when it was accepted.
                  */
                 // Create container and set capacity and volume attributes;
-                std::string containerName = sItemFactory.GetSolarSystemRef(startSolarSystemID)->name();
-                containerName = containerName + " -> " + sItemFactory.GetSolarSystemRef(endSolarSystemID)->name() + "(" + std::to_string(volume) + "m3)";
+                std::string sysFrom = "?";
+                SolarSystemRef fromSys = sItemFactory.GetSolarSystemRef(startSolarSystemID);
+                if (fromSys.get() != nullptr)
+                    sysFrom = fromSys->name();
+                std::string sysTo = "?";
+                SolarSystemRef toSys = sItemFactory.GetSolarSystemRef(endSolarSystemID);
+                if (toSys.get() != nullptr)
+                    sysTo = toSys->name();
+                std::string containerName = sysFrom + " -> " + sysTo + "(" + std::to_string(volume) + "m3)";
 
                 ItemData itemData(itemPlasticWrap, call.client->GetCharacterID(), locTemp, flagNone);
                 itemData.name = containerName;
                 InventoryItemRef plasticWrap = sItemFactory.SpawnItem(itemData);
-                if (plasticWrap.get() != nullptr) {
-                    plasticWrap->SetAttribute(AttrVolume, volume);
-                    plasticWrap->SetAttribute(AttrCapacity, volume);
+                if (plasticWrap.get() == nullptr) {
+                    codelog(SERVICE__ERROR, "%s: AcceptContract courier failed to spawn plastic wrap for contract %u.", GetName(), contractID->value());
+                    RollbackCourierAcceptCollateral(call.client, acceptorForCorp, static_cast<double>(collateral), acceptorMoneyKey, contractID->value());
+                    return nullptr;
                 }
+                plasticWrap->SetAttribute(AttrVolume, volume);
+                plasticWrap->SetAttribute(AttrCapacity, volume);
                 plasticWrap->SaveItem();
                 // Then, move all required items into it
                 std::vector<int> items;
                 ContractUtils::GetContractItemIDs(contractID->value(), &items);
                 for (auto item : items) {
+                    if (item == 0)
+                        continue;
                     InventoryItemRef itm = sItemFactory.GetItemRef(item);
                     if (itm.get() != nullptr) {
                         itm->Move(plasticWrap->itemID(), flagNone, true);
@@ -1094,7 +1150,9 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
             // Complete (courier delivery — validated via crate / end station)
             // First, we need to make sure that the container is indeed located in the end station
             if (call.client->GetStationID() != endStationID) {
-                call.client->SendNotifyMsg("You have to deliver the package to %s", sItemFactory.GetStationRef(endStationID)->name());
+                StationItemRef endStRef = sItemFactory.GetStationRef(endStationID);
+                const std::string nameHint = (endStRef.get() != nullptr) ? endStRef->name() : std::string("the destination station");
+                call.client->SendNotifyMsg("You have to deliver the package to %s", nameHint.c_str());
                 return new PyBool(false);
             }
             if (acceptorCharID != 0 && call.client->GetCharacterID() != acceptorCharID) {
@@ -1120,7 +1178,13 @@ PyResult ContractProxy::CompleteContract(PyCallArgs &call, PyInt* contractID, Py
             if (allItemsPresent) {
                 // Once checks have passed, we extract the items into issuer inventory (character or corporation).
                 for (const auto& entry : expectedItems) {
+                    if (entry.first == 0)
+                        continue;
                     InventoryItemRef item = sItemFactory.GetItemRef(entry.first);
+                    if (item.get() == nullptr) {
+                        codelog(SERVICE__ERROR, "%s: CompleteContract courier item %d missing at handoff.", GetName(), entry.first);
+                        return new PyBool(false);
+                    }
                     item->ChangeOwner(issuerWalletID, true);
                     item->Move(endStationID, flagHangar, true);
                 }
