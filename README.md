@@ -27,6 +27,7 @@ ootp-announcer discover
 ootp-announcer init-config --output announcer.toml
 ootp-announcer inspect --ootp-root "C:/Path/To/OOTP Baseball 27" --out ootp-inspection.md
 ootp-announcer doctor --config announcer.toml --script examples/lines.csv --out build/voice-pack
+ootp-announcer prepare-script --script examples/lines.csv --pronunciations examples/pronunciations.csv --out build/lines-tts.csv --report build/pronunciation-report.md
 ootp-announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
 ootp-announcer package --voice-pack build/voice-pack --out build/voice-pack.zip
 ```
@@ -60,6 +61,31 @@ ootp-announcer doctor --config announcer.toml --script examples/lines.csv --out 
 The doctor command checks that the config loads, the script is valid, the output
 parent exists, and the configured TTS backend has the required pieces. It returns
 a non-zero exit code when a blocking error is found.
+
+## Control pronunciation
+
+Use a pronunciation lexicon to make neural TTS read acronyms, names, and baseball
+phrases naturally:
+
+```bash
+ootp-announcer prepare-script \
+  --script examples/lines.csv \
+  --pronunciations examples/pronunciations.csv \
+  --out build/lines-tts.csv \
+  --report build/pronunciation-report.md
+```
+
+The prepared script keeps the original text in an `original_text` column while
+placing the TTS-friendly version in `text`. You can also apply the lexicon at
+build time:
+
+```bash
+ootp-announcer build \
+  --config announcer.toml \
+  --script examples/lines.csv \
+  --pronunciations examples/pronunciations.csv \
+  --out build/voice-pack
+```
 
 ## Use Piper for a realistic offline announcer
 

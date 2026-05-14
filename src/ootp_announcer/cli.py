@@ -11,6 +11,12 @@ from .installer import install_voice_pack, render_install_report
 from .inspector import inspect_ootp_root, write_json_report, write_markdown_report
 from .ootp_paths import likely_candidates
 from .packager import create_zip_package
+from .pronunciation import (
+    apply_pronunciations,
+    load_pronunciations,
+    render_pronunciation_report,
+    write_prepared_script,
+)
 from .script import load_script
 
 
@@ -52,10 +58,22 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--out", type=Path, default=Path("voice-pack"))
     doctor.set_defaults(func=_doctor)
 
+    prepare_script = subcommands.add_parser(
+        "prepare-script",
+        help="Apply a pronunciation lexicon to a CSV announcer script",
+    )
+    prepare_script.add_argument("--script", type=Path, required=True)
+    prepare_script.add_argument("--pronunciations", type=Path, required=True)
+    prepare_script.add_argument("--out", type=Path, required=True)
+    prepare_script.add_argument("--audio-extension", default="wav")
+    prepare_script.add_argument("--report", type=Path)
+    prepare_script.set_defaults(func=_prepare_script)
+
     build = subcommands.add_parser("build", help="Generate an announcer voice pack")
     build.add_argument("--config", type=Path, default=Path("announcer.toml"))
     build.add_argument("--script", type=Path, required=True)
     build.add_argument("--out", type=Path, default=Path("voice-pack"))
+    build.add_argument("--pronunciations", type=Path)
     build.set_defaults(func=_build)
 
     package = subcommands.add_parser("package", help="Zip a generated voice pack")
@@ -117,11 +135,34 @@ def _doctor(args: argparse.Namespace) -> int:
     return 1 if report.has_errors else 0
 
 
+def _prepare_script(args: argparse.Namespace) -> int:
+    lines = load_script(args.script, args.audio_extension)
+    rules = load_pronunciations(args.pronunciations)
+    prepared, changes = apply_pronunciations(lines, rules)
+    write_prepared_script(lines, prepared, args.out)
+    report = render_pronunciation_report(changes)
+    print(report)
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(report, encoding="utf-8")
+        print(f"Wrote pronunciation report: {args.report}")
+    print(f"Wrote prepared script: {args.out}")
+    return 0
+
+
 def _build(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     lines = load_script(args.script, config.audio.extension)
+    if args.pronunciations:
+        rules = load_pronunciations(args.pronunciations)
+        lines, changes = apply_pronunciations(lines, rules)
+        args.out.mkdir(parents=True, exist_ok=True)
+        pronunciation_report = args.out / "pronunciation-report.md"
+        pronunciation_report.write_text(render_pronunciation_report(changes), encoding="utf-8")
     manifest = build_voice_pack(config, lines, args.out)
     print(f"Generated {len(lines)} line(s)")
+    if args.pronunciations:
+        print(f"Pronunciation report: {pronunciation_report}")
     print(f"Manifest: {manifest}")
     return 0
 
