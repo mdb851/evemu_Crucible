@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .config import AnnouncerConfig
+from .packager import write_install_notes
 from .script import ScriptLine
 from .tts import synthesize
 
@@ -50,4 +51,5 @@ def build_voice_pack(
         json.dumps([asdict(line) for line in lines], indent=2),
         encoding="utf-8",
     )
+    write_install_notes(output_dir)
     return manifest_path
