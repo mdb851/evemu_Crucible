@@ -15,7 +15,7 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertEqual(lines[0].cue_id, "first_pitch")
         self.assertEqual(lines[0].category, "general")
-        self.assertEqual(lines[0].filename, "first-pitch.wav")
+        self.assertEqual(lines[0].filename, "first_pitch.wav")
 
     def test_load_script_rejects_duplicate_ids(self) -> None:
         with self._tmp_script(
