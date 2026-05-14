@@ -5,7 +5,9 @@ from pathlib import Path
 import sys
 
 from .config import default_config_text, load_config
+from .doctor import render_doctor_report, run_doctor
 from .generator import build_voice_pack
+from .installer import install_voice_pack, render_install_report
 from .inspector import inspect_ootp_root, write_json_report, write_markdown_report
 from .ootp_paths import likely_candidates
 from .packager import create_zip_package
@@ -44,6 +46,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inspect.set_defaults(func=_inspect)
 
+    doctor = subcommands.add_parser("doctor", help="Validate config, script, and TTS setup")
+    doctor.add_argument("--config", type=Path, default=Path("announcer.toml"))
+    doctor.add_argument("--script", type=Path)
+    doctor.add_argument("--out", type=Path, default=Path("voice-pack"))
+    doctor.set_defaults(func=_doctor)
+
     build = subcommands.add_parser("build", help="Generate an announcer voice pack")
     build.add_argument("--config", type=Path, default=Path("announcer.toml"))
     build.add_argument("--script", type=Path, required=True)
@@ -54,6 +62,20 @@ def build_parser() -> argparse.ArgumentParser:
     package.add_argument("--voice-pack", type=Path, default=Path("voice-pack"))
     package.add_argument("--out", type=Path, default=Path("voice-pack.zip"))
     package.set_defaults(func=_package)
+
+    install = subcommands.add_parser(
+        "install",
+        help="Copy a generated voice pack to a chosen local target folder",
+    )
+    install.add_argument("--voice-pack", type=Path, default=Path("voice-pack"))
+    install.add_argument("--target", type=Path, required=True)
+    install.add_argument("--backup-dir", type=Path)
+    install.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually copy files; omitted means dry-run only",
+    )
+    install.set_defaults(func=_install)
 
     return parser
 
@@ -89,6 +111,12 @@ def _inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _doctor(args: argparse.Namespace) -> int:
+    report = run_doctor(args.config, script_path=args.script, output_dir=args.out)
+    print(render_doctor_report(report))
+    return 1 if report.has_errors else 0
+
+
 def _build(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     lines = load_script(args.script, config.audio.extension)
@@ -101,6 +129,17 @@ def _build(args: argparse.Namespace) -> int:
 def _package(args: argparse.Namespace) -> int:
     output = create_zip_package(args.voice_pack, args.out)
     print(f"Wrote package: {output}")
+    return 0
+
+
+def _install(args: argparse.Namespace) -> int:
+    report = install_voice_pack(
+        args.voice_pack,
+        args.target,
+        apply=args.apply,
+        backup_dir=args.backup_dir,
+    )
+    print(render_install_report(report))
     return 0
 
 

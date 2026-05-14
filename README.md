@@ -26,6 +26,7 @@ python -m pip install -e .
 ootp-announcer discover
 ootp-announcer init-config --output announcer.toml
 ootp-announcer inspect --ootp-root "C:/Path/To/OOTP Baseball 27" --out ootp-inspection.md
+ootp-announcer doctor --config announcer.toml --script examples/lines.csv --out build/voice-pack
 ootp-announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
 ootp-announcer package --voice-pack build/voice-pack --out build/voice-pack.zip
 ```
@@ -46,6 +47,19 @@ ootp-announcer inspect --ootp-root "C:/Program Files/Out of the Park Development
 The report highlights likely configuration, pronunciation, play-by-play, audio,
 and mod folders. Use it as the source of truth for the next integration step.
 Always back up OOTP files before replacing or editing them.
+
+## Validate before building
+
+Run `doctor` whenever you change the config, script, voice engine, or output
+folder:
+
+```bash
+ootp-announcer doctor --config announcer.toml --script examples/lines.csv --out build/voice-pack
+```
+
+The doctor command checks that the config loads, the script is valid, the output
+parent exists, and the configured TTS backend has the required pieces. It returns
+a non-zero exit code when a blocking error is found.
 
 ## Use Piper for a realistic offline announcer
 
@@ -101,3 +115,20 @@ pronunciation, sound, or mod folders.
 Generated voice packs include `INSTALL.md` with a local checklist. The tool does
 not overwrite game files automatically because the exact OOTP 27 integration
 point should be confirmed from the inspection report on your machine.
+
+## Copy a voice pack to a local target
+
+The install command is dry-run by default:
+
+```bash
+ootp-announcer install --voice-pack build/voice-pack --target "C:/Path/Confirmed/From/Inspection"
+```
+
+After reviewing the planned copies, add `--apply` to perform the install:
+
+```bash
+ootp-announcer install --voice-pack build/voice-pack --target "C:/Path/Confirmed/From/Inspection" --apply
+```
+
+Existing target files are copied into `_backup/` before they are replaced, and
+an `ootp-announcer-install.json` manifest is written to the target.
