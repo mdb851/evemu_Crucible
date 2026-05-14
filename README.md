@@ -1,81 +1,82 @@
-# [EVEmu](https://evemu.dev) - An EVE Online Emulator
+# OOTP 27 Realistic Announcer
 
-<p align="center">
-	<a href="https://github.com/EvEmu-Project/evemu_Crucible/pulse"><img src="https://img.shields.io/tokei/lines/github/EvEmu-Project/evemu_Crucible" /></a>
-	<a href="https://www.codefactor.io/repository/github/evemu-project/evemu_crucible"><img src="https://img.shields.io/codefactor/grade/github/evemu-project/evemu_crucible" /></a>
-	<a href="https://github.com/EvEmu-Project/evemu_Crucible/graphs/commit-activity"><img src="https://img.shields.io/github/commit-activity/w/EvEmu-Project/evemu_Crucible" /></a>
-	<a href="https://github.com/EvEmu-Project/evemu_Crucible/graphs/contributors"><img src="https://img.shields.io/github/contributors/EvEmu-Project/evemu_Crucible" /></a>
-	<a href="https://discord.gg/fTfAREYxbz"><img src="https://img.shields.io/discord/165291219205881856" /></a>
-	<a href="https://github.com/EvEmu-Project/evemu_Crucible/issues"><img src="https://img.shields.io/github/issues-raw/EvEmu-Project/evemu_Crucible" /></a>
-</p>
+This repository is a clean starter project for replacing OOTP 27's robotic
+text-to-speech workflow with a generated, realistic announcer voice pack.
 
-## Introduction
-EVEmu is a work-in-progress server emulator for the space MMO EVE Online. This is an educational project. Please see the disclaimer below for details.
+The code is intentionally local-first:
 
-## ChangeLog
-[ChangeLog](doc/ChangeLog.md)
+- discovers likely OOTP 27 install/data folders when run on the game PC
+- reads announcer copy from CSV
+- generates a manifest and one audio file per line
+- supports offline neural TTS through [Piper](https://github.com/rhasspy/piper)
+- supports any other TTS CLI through a configurable command template
+- includes a dry-run backend so the content pipeline can be tested without TTS
 
-## EVEmu Software Development Kit ##
-The EVEmu project maintains a set of pre-configured tools and environments that help with setting up a new development station. [Check them out](https://github.com/EvEmu-Project/EvEmu_SDK)
+> This cloud workspace cannot see your Windows game install. Run the CLI on the
+> PC where OOTP 27 is installed, then point the config at the actual game/data
+> folder that the `discover` command reports.
 
-Additional details on the SDK are [available on the wiki](https://wiki.evemu.dev/wiki/EVEmu-SDK).
+## Quick start
 
-## `docker compose` Quickstart
- EVEmu can be run with Docker Compose:
-```
-git clone https://github.com/EvEmu-Project/evemu_Crucible.git
-cd evemu_Crucible
-docker compose up -d
-```
-**NOTE:** Add `--build` to the `docker compose up` command to force a rebuild of the source. This is useful when making code changes.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
 
-~~By changing `build:` to `image:` in `docker-compose.yml`, you can use the prebuilt images available.~~
-
-Configuration files are stored in `./config/`. These can be modified and will persist across restarts.
-
-To shutdown EVEmu:
-```
-docker compose stop
+ootp-announcer discover
+ootp-announcer init-config --output announcer.toml
+ootp-announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
 ```
 
-## Building with Docker
- EVEmu can now be built with docker to ensure a consistent dependency base. This can be done by executing `docker compose build` in the root directory.
- It is highly suggested to build EVEmu from the latest release available on the releases page.
+The default config uses `dry-run`, which writes text sidecars and a manifest
+without requiring a TTS engine.
 
- [Releases](https://github.com/EvEmu-Project/evemu_Crucible/releases)
+## Use Piper for a realistic offline announcer
 
-## Accounts
- Accounts will be created automatically when logging in with the client if the username is not already taken.
+1. Install Piper on the game PC.
+2. Download a high-quality English voice model.
+3. Edit `announcer.toml`:
 
-## Communication / Contact
- Check out the new [EVEmu Project website](https://evemu.dev), our [Discord](https://discord.gg/fTfAREYxbz) and [Forums](https://forums.evemu.dev)!
+```toml
+[voice]
+backend = "piper"
+piper_binary = "piper"
+piper_model = "C:/voices/en_US-lessac-high.onnx"
+```
 
-## Disclaimer
-***EVEmu is an educational project.***
- This means, our primary interest is to learn and teach us
-and our users more about C++ project development in a large
-scale. Our software is not intended for running public servers,
-and we do not support that. We are not responsible for what others
-do with the source code downloaded from this project.
+Then rebuild:
 
-## Legal
-    ------------------------------------------------------------------------------------
-    LICENSE:
-    ------------------------------------------------------------------------------------
-    This file is part of EVEmu: EVE Online Server Emulator
-    Copyright 2006 - 2021 The EVEmu Team
-    For the latest information visit https://evemu.dev/
-    ------------------------------------------------------------------------------------
-    This program is free software; you can redistribute it and/or modify it under
-    the terms of the GNU Lesser General Public License as published by the Free Software
-    Foundation, either version 3 of the License, or (at your option) any later
-    version.
+```bash
+ootp-announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
+```
 
-    This program is distributed in the hope that it will be useful, but WITHOUT
-    ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-    FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+## Use another TTS provider
 
-    You should have received a copy of the GNU Lesser General Public License along with
-    this program; if not, see https://www.gnu.org/licenses/.
-    ------------------------------------------------------------------------------------
+Set `backend = "command"` and provide a command template. The command must
+write the audio file to `{output}`. `{text}` contains the line to speak. The
+placeholder values are shell-quoted by the builder, so do not add extra quotes
+around them in the template.
 
+```toml
+[voice]
+backend = "command"
+command_template = "my-tts-cli --voice stadium --text {text} --output {output}"
+```
+
+## CSV script format
+
+`examples/lines.csv` shows the expected columns:
+
+| column | required | description |
+| --- | --- | --- |
+| `id` | yes | stable cue identifier |
+| `text` | yes | words for the announcer to speak |
+| `category` | no | grouping such as `intro`, `hit`, `strikeout` |
+| `filename` | no | output filename; defaults to a sanitized `id` |
+
+## Current integration target
+
+OOTP's built-in announcer uses the game's own TTS/PBP systems. This project
+creates high-quality audio assets and a manifest so the next integration step
+can be based on the actual OOTP 27 files found on your PC, such as play-by-play,
+pronunciation, sound, or mod folders.

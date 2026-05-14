@@ -1,0 +1,5 @@
+id,category,text,filename
+pregame_welcome,intro,"Good evening, baseball fans. Welcome to the ballpark for OOTP 27 action.",
+home_run_call,hit,"That ball is driven deep to left field. It is gone!",
+strikeout_swinging,strikeout,"He swings through strike three, and the inning is over.",
+walkoff_win,final,"The winning run scores, and this crowd is on its feet!",
