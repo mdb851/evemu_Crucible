@@ -6,7 +6,9 @@ import sys
 
 from .config import default_config_text, load_config
 from .generator import build_voice_pack
+from .inspector import inspect_ootp_root, write_json_report, write_markdown_report
 from .ootp_paths import likely_candidates
+from .packager import create_zip_package
 from .script import load_script
 
 
@@ -27,11 +29,31 @@ def build_parser() -> argparse.ArgumentParser:
     init_config.add_argument("--force", action="store_true", help="Overwrite an existing config")
     init_config.set_defaults(func=_init_config)
 
+    inspect = subcommands.add_parser(
+        "inspect",
+        help="Inspect an OOTP 27 folder for likely announcer integration files",
+    )
+    inspect.add_argument("--ootp-root", type=Path, required=True)
+    inspect.add_argument("--out", type=Path, default=Path("ootp-inspection.md"))
+    inspect.add_argument("--json-out", type=Path)
+    inspect.add_argument(
+        "--max-files",
+        type=int,
+        default=5000,
+        help="Maximum number of files to scan before stopping",
+    )
+    inspect.set_defaults(func=_inspect)
+
     build = subcommands.add_parser("build", help="Generate an announcer voice pack")
     build.add_argument("--config", type=Path, default=Path("announcer.toml"))
     build.add_argument("--script", type=Path, required=True)
     build.add_argument("--out", type=Path, default=Path("voice-pack"))
     build.set_defaults(func=_build)
+
+    package = subcommands.add_parser("package", help="Zip a generated voice pack")
+    package.add_argument("--voice-pack", type=Path, default=Path("voice-pack"))
+    package.add_argument("--out", type=Path, default=Path("voice-pack.zip"))
+    package.set_defaults(func=_package)
 
     return parser
 
@@ -53,12 +75,32 @@ def _init_config(args: argparse.Namespace) -> int:
     return 0
 
 
+def _inspect(args: argparse.Namespace) -> int:
+    report = inspect_ootp_root(args.ootp_root, max_files=args.max_files)
+    write_markdown_report(report, args.out)
+    print(f"Wrote inspection report: {args.out}")
+    if args.json_out:
+        write_json_report(report, args.json_out)
+        print(f"Wrote JSON report: {args.json_out}")
+    if not report.exists:
+        return 1
+    print(f"Found {len(report.folders)} candidate folder(s)")
+    print(f"Found {len(report.files)} candidate file(s)")
+    return 0
+
+
 def _build(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     lines = load_script(args.script, config.audio.extension)
     manifest = build_voice_pack(config, lines, args.out)
     print(f"Generated {len(lines)} line(s)")
     print(f"Manifest: {manifest}")
+    return 0
+
+
+def _package(args: argparse.Namespace) -> int:
+    output = create_zip_package(args.voice_pack, args.out)
+    print(f"Wrote package: {output}")
     return 0
 
 

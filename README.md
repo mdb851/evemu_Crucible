@@ -25,11 +25,27 @@ python -m pip install -e .
 
 ootp-announcer discover
 ootp-announcer init-config --output announcer.toml
+ootp-announcer inspect --ootp-root "C:/Path/To/OOTP Baseball 27" --out ootp-inspection.md
 ootp-announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
+ootp-announcer package --voice-pack build/voice-pack --out build/voice-pack.zip
 ```
 
 The default config uses `dry-run`, which writes text sidecars and a manifest
 without requiring a TTS engine.
+
+## Inspect the local OOTP install
+
+Before editing game files, run an inspection report against the OOTP install or
+user data folder that exists on the game PC:
+
+```bash
+ootp-announcer discover
+ootp-announcer inspect --ootp-root "C:/Program Files/Out of the Park Developments/OOTP Baseball 27" --out ootp-inspection.md --json-out ootp-inspection.json
+```
+
+The report highlights likely configuration, pronunciation, play-by-play, audio,
+and mod folders. Use it as the source of truth for the next integration step.
+Always back up OOTP files before replacing or editing them.
 
 ## Use Piper for a realistic offline announcer
 
@@ -48,6 +64,7 @@ Then rebuild:
 
 ```bash
 ootp-announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
+ootp-announcer package --voice-pack build/voice-pack --out build/voice-pack.zip
 ```
 
 ## Use another TTS provider
@@ -80,3 +97,7 @@ OOTP's built-in announcer uses the game's own TTS/PBP systems. This project
 creates high-quality audio assets and a manifest so the next integration step
 can be based on the actual OOTP 27 files found on your PC, such as play-by-play,
 pronunciation, sound, or mod folders.
+
+Generated voice packs include `INSTALL.md` with a local checklist. The tool does
+not overwrite game files automatically because the exact OOTP 27 integration
+point should be confirmed from the inspection report on your machine.
