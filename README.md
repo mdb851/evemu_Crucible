@@ -118,6 +118,23 @@ command_template = "my-tts-cli --voice stadium --text {text} --output {output}"
 | `category` | no | grouping such as `intro`, `hit`, `strikeout` |
 | `filename` | no | output filename; defaults to a sanitized `id` |
 
+## Harvesting phrases from the game (option 1)
+
+On the PC where **OOTP 27** is installed, you can pull readable sentences out of the shipped **English.html** (play-by-play / UI prose) into a CSV, then merge the rows you want into your own script before `build`:
+
+```powershell
+python -m ootp_announcer harvest-pbp --out build\harvested-pbp-lines.csv
+```
+
+That searches every **FOUND** path from `discover`. To point at one install explicitly:
+
+```powershell
+python -m ootp_announcer discover
+python -m ootp_announcer harvest-pbp --ootp-root "C:\Program Files\Out of the Park Developments\OOTP Baseball 27" --out build\harvested-pbp-lines.csv
+```
+
+Lines that still contain unresolved `{placeholders}` are dropped; simple `{name}` tokens are stripped so the remainder can be spoken. Tune noise vs. yield with `--min-chars` / `--max-chars` (defaults 24 and 320). Expect to **curate** the CSV: some lines are interface text, not broadcasters.
+
 ## Current integration target
 
 OOTP's built-in announcer uses the game's own TTS/PBP systems. This project

@@ -8,6 +8,12 @@ import sys
 from .config import default_config_text, load_config
 from .generator import build_voice_pack
 from .ootp_paths import likely_candidates
+from .pbp_harvest import (
+    find_pbp_language_html,
+    harvest_phrases_from_html,
+    phrases_to_csv_rows,
+    write_harvest_csv,
+)
 from .script import load_script
 from .tts import (
     TtsError,
@@ -62,6 +68,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional TOML: read key from voice.elevenlabs_api_key if env/file unset (ELEVENLABS_API_KEY_FILE then ELEVENLABS_API_KEY win)",
     )
     verify.set_defaults(func=_verify_elevenlabs)
+
+    harvest = subcommands.add_parser(
+        "harvest-pbp",
+        help="Extract candidate phrases from OOTP English.html (run on the PC where the game is installed)",
+    )
+    harvest.add_argument(
+        "--ootp-root",
+        type=Path,
+        default=None,
+        help="OOTP 27 folder; if omitted, every existing path from discover is searched",
+    )
+    harvest.add_argument(
+        "--out",
+        type=Path,
+        default=Path("build/harvested-pbp-lines.csv"),
+        help="Output CSV (id, category, text) for merging into a voice script",
+    )
+    harvest.add_argument(
+        "--min-chars",
+        type=int,
+        default=24,
+        metavar="N",
+        help="Drop very short snippets (UI labels, numbers)",
+    )
+    harvest.add_argument(
+        "--max-chars",
+        type=int,
+        default=320,
+        metavar="N",
+        help="Drop very long blocks; split sentences already applied inside each HTML chunk",
+    )
+    harvest.set_defaults(func=_harvest_pbp)
 
     return parser
 
@@ -135,6 +173,61 @@ def _verify_elevenlabs(args: argparse.Namespace) -> int:
     if isinstance(sub, dict):
         tier = sub.get("tier", sub.get("tier_display_name", "?"))
         print(f"Subscription info from API: tier = {tier!r}")
+    return 0
+
+
+def _harvest_pbp(args: argparse.Namespace) -> int:
+    if args.min_chars < 1 or args.max_chars < args.min_chars:
+        print("--min-chars must be >= 1 and --max-chars must be >= --min-chars", file=sys.stderr)
+        return 2
+
+    roots: list[Path] = []
+    if args.ootp_root is not None:
+        roots = [args.ootp_root.expanduser()]
+    else:
+        roots = [c.path for c in likely_candidates(None) if c.exists]
+
+    all_files: list[Path] = []
+    for root in roots:
+        all_files.extend(find_pbp_language_html(root))
+    all_files = sorted(set(all_files), key=lambda x: str(x).lower())
+
+    if not all_files:
+        print(
+            "No English.html found under known paths. Install OOTP 27, run "
+            "`python -m ootp_announcer discover`, then pass --ootp-root to the FOUND install or Steam folder.",
+            file=sys.stderr,
+        )
+        return 2
+
+    dedupe_text: set[str] = set()
+    rows: list[tuple[str, str, str]] = []
+    for html_path in all_files:
+        phrases = harvest_phrases_from_html(
+            html_path,
+            min_chars=args.min_chars,
+            max_chars=args.max_chars,
+        )
+        for row in phrases_to_csv_rows(phrases):
+            text_key = row[2].casefold()
+            if text_key in dedupe_text:
+                continue
+            dedupe_text.add(text_key)
+            rows.append(row)
+
+    if not rows:
+        print(
+            "Parsed HTML but found no usable phrases. Try lowering --min-chars (e.g. 12).",
+            file=sys.stderr,
+        )
+        return 3
+
+    write_harvest_csv(rows, args.out)
+    print(f"Sources ({len(all_files)} file(s)):")
+    for path in all_files:
+        print(f"  {path}")
+    print(f"Wrote {len(rows)} unique phrase(s) to {args.out}")
+    print("Merge or cherry-pick rows into your script CSV, then run build.")
     return 0
 
 
