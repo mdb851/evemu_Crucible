@@ -1,0 +1,110 @@
+id,category,text
+br_open_evening,broadcast_open,Good evening everyone. A warm welcome on a beautiful night for baseball here at the ballpark.
+br_open_measured,broadcast_open,Thanks for joining us tonight. We are set for first pitch with two teams ready to compete at a high level.
+br_open_ballpark,broadcast_open,It is great to be with you from the yard tonight where the lights are bright and the crowd is ready.
+br_first_pitch,inning_bridge,Here we go. The first offering of the night is on the way.
+br_mid_game,inning_bridge,We pick it up with the game well underway and both sides trading punches on the mound and at the plate.
+br_late_innings,inning_bridge,Late innings now. Every pitch matters and the tension is building in this ballpark.
+br_extra_innings,extra_innings,Free baseball tonight. We are headed to extra frames with everything still on the table.
+br_tie_late,situation,We are knotted up late. One swing or one mistake could decide this one.
+br_risp_pressure,situation,Runners in scoring position here. The infield is tight and the crowd is on its feet.
+br_bases_loaded,situation,The bags are full. A base hit could break this open.
+br_full_count,count,Full count. The hitter is locked in and the pitcher is one pitch from escaping or paying.
+br_batter_intro_v1,batter_intro,Stepping in now is a hitter who has been seeing the ball well in recent games.
+br_batter_intro_v2,batter_intro,Here comes a dangerous bat in this lineup. The defense knows he can change the scoreboard in a hurry.
+br_pitcher_dealing,pitching,On the hill tonight is a pitcher who is commanding the edges and keeping hitters off balance.
+br_pitcher_labors,pitching,He is working hard out there. The pitch count is climbing and the bullpen is stirring.
+br_changeup_away,pitching,That changeup away freezes him. Veteran sequencing right there.
+br_fastball_in,pitching,He goes upstairs with heat and ties him up inside.
+br_curve_buckles,pitching,Big breaking ball drops in for a called strike. The hitter never offered.
+br_single_lf_gap,hit_single,Base hit the other way into left. He is on with a clean knock.
+br_single_bleeder,hit_single,That one finds grass through the infield. It is not pretty but it counts.
+br_single_oppo,hit_single,He stays inside it and serves one into opposite field for a base hit.
+br_double_alley,hit_double,Driven deep into the gap. He is digging for second and he is there standing up with a double.
+br_double_line,hit_double,A laser down the line and it is off the wall in a hurry. Extra bases here.
+br_triple_corner,hit_triple,That ball rolls forever into the corner. He is flying around the bases and slides in safely with a triple.
+br_homer_no_doubt,homerun,No doubt about it. He knew it off the bat and this crowd is on its feet.
+br_homer_oppo,homerun,Opposite field power. He stayed through it and drove it out the other way.
+br_homer_pulled,homerun,He turns on one and pulls it deep. That ball is gone in a hurry.
+br_homer_roof,homerun,High and deep. That one might leave the entire building.
+br_grand_slam,homerun,Grand slam. A swing that clears the bases and blows the roof off this place.
+br_inside_park,homerun,Chaos in the outfield and he never stops running. An inside-the-parker and you do not see that every day.
+br_fly_routine,out_air,Routine fly ball to the outfield. The defender settles under it and makes the catch.
+br_fly_track,out_air,He got under it a bit but the outfielder tracks it down on the warning track.
+br_lineout_sharp,out_air,Barreled but right at him. A line drive out and the defense breathes a sigh of relief.
+br_inf_pop,out_air,Sky high in the infield. Somebody call it because that is an easy out.
+br_groundout_shift,out_ground,Right into the shift. A ground ball swallowed up and an easy throw across the diamond.
+br_groundout_slow,out_ground,Slow roller to third. The only play is to first and he beats it by a step.
+br_double_play,double_play,Ground ball up the middle. They turn two in style and the inning is over.
+br_strikeout_swing,strikeout,He swings through it upstairs for strike three and a big punchout.
+br_strikeout_check,strikeout,Caught looking on a borderline pitch. He wants no part of that call.
+br_strikeout_chase,strikeout,Chase off the plate in the dirt. The slider did its job.
+br_walk_nibble,walk,The payoff misses and he has worked a walk. The inning stays alive.
+br_walk_intent,walk,They will put him on intentionally and take their chances with the next hitter.
+br_hbp,walk,That one rides inside and clips him. He takes his base.
+br_wild_pitch,mistake,Wild pitch and everybody moves up ninety feet.
+br_passed_ball,mistake,Gets away from the catcher. The runner advances.
+br_steal_safe,baserunning,He breaks for second and the throw is late. A stolen base in a big spot.
+br_steal_caught,baserunning,They cut him down at second. A perfect throw and a quick tag ends the threat.
+br_pickoff,baserunning,He picks him off. The runner got greedy and paid the price.
+br_pitching_change,pitching_change,A move to the bullpen here as the skipper signals for a fresh arm.
+br_relief_entrance,pitching_change,Hard thrower coming in with late life on the fastball. This matchup gets interesting.
+br_pinch_hit,lineup,Pinch hitter announced. A veteran bat off the bench looking for one good swing.
+br_pinch_run,lineup,Speed off the bench as a pinch runner. A stolen base could be the plan.
+br_defensive_gem,defense,What a play. He lays out full extension and steals a hit away.
+br_wall_catch,defense,Back to the track. At the wall. He leaps and brings it back. That is robbery.
+br_relay_gun,defense,A perfect relay from the outfield and they nail him at the plate.
+br_review,replay,They are going to take another look at this one. The crew chief puts on the headset.
+br_review_stand,replay,After review the call stands. Play on.
+br_review_overturn,replay,The call is overturned. A huge break for the offense.
+br_crowd_roar,crowd,This crowd is deafening right now. Playoff energy in the building.
+br_crowd_nervous,crowd,You can feel the ballpark holding its breath on every pitch.
+br_weather_hold,weather,We are in a brief hold while the grounds crew keeps the surface safe.
+br_delay_resume,weather,Play resumes. Thank you for your patience tonight.
+br_walkoff_hit,walkoff,Base hit. Here comes the winning run and the party starts at home plate.
+br_walkoff_homer,walkoff,Walk-off home run. Bedlam at the ballpark.
+br_series_clinch,postseason,They have done it. A series clincher and champagne is not far away.
+br_postseason_intensity,postseason,October baseball means every at-bat is amplified and every mistake hurts.
+br_wrap_win,game_wrap,That is your ballgame. A clean win tonight with pitching and defense setting the tone.
+br_wrap_tight,game_wrap,A tight one tonight but they found a way. That is baseball at its best.
+br_wrap_tomorrow,game_wrap,We will see you tomorrow with another full slate. For now so long from the ballpark.
+br_safety_mention,broadcast_open,A quick reminder to drive home safely if you are leaving the yard tonight.
+br_pitch_clock,inning_bridge,The tempo is crisp tonight. Both clubs are working with purpose on the mound.
+br_lefty_specialist,pitching_change,Left-on-left matchup here as the manager plays the percentages.
+br_sinker_ground,pitching,Heavy sinker on the inner half and he rolls over it for a ground ball.
+br_splitter_swing,pitching,The splitter dives late and he swings over the top of it.
+br_squeeze_try,baserunning,Suicide squeeze is on. Bunt it fair or the runner is in trouble.
+br_safety_squeeze,baserunning,Safety squeeze laid down. The runner breaks late and the run scores.
+br_error_costly,mistake,That one gets through. A costly error extends the inning.
+br_sun_field,defense,Tough sky today and that ball is lost in the sun. Nobody can find it.
+br_catcher_frame,pitching,Beautiful frame on the corner pitch. The umpire rewards conviction.
+br_balk,mistake,Balk is called. The runners advance without a swing.
+br_catch_interference,mistake,Catchers interference is ruled. He will be awarded first base.
+br_infield_in,situation,Infield is playing in. A ground ball could decide it.
+br_outfield_deep,situation,Outfield is shaded deep. They are guarding the gaps.
+br_holds_runner,pitching,Quick move to first and he keeps the runner honest.
+br_challenge_arm,defense,What an arm from right field. He cut down the lead runner.
+br_slap_bunt,hit_single,A drag bunt down the third base line and he beats it out.
+br_safety_slide,baserunning,He slides in safely with a textbook hook slide.
+br_tag_play_close,defense,Tag play at the bag and he is out by a whisker.
+br_foul_territory,inning_bridge,Foul back into the seats and we will do it again.
+br_mound_visit,pitching,The pitching coach is out for a quick word. Settle the inning down.
+br_bullpen_warm,pitching_change,Activity in the bullpen. A power arm is getting loose.
+br_opener_role,pitching,Opener tonight gives way to the bulk guy. Modern baseball on display.
+br_quality_start,game_wrap,Six strong innings and he hands it off with the lead intact.
+br_no_hitter_alive,situation,Through six no hits on the board. You know the rule. We stay quiet.
+br_cycle_alert,situation,He has a triple and a double already. The cycle watch is officially on.
+br_hustle_double,hit_double,He turns on the jets out of the box and stretches a single into two.
+br_tag_up,baserunning,Tag and score on the medium fly ball. Fundamentals win ballgames.
+br_leadoff_single,hit_single,Leadoff man aboard with a sharp single up the middle.
+br_two_out_rally,situation,Two outs and nobody on. Suddenly the inning is alive.
+br_comeback_kids,situation,They have been down before and they do not panic. Here comes another rally.
+br_manager_ejected,mistake,And he is gone. The skipper lets the crew chief hear it and he pays the price.
+br_bench_clearing,mistake,Tempers flare and both benches empty. Cooler heads need to prevail.
+br_injury_timeout,inning_bridge,A pause in play while the trainer checks on him. The crowd offers a respectful applause.
+br_day_game,broadcast_open,Good afternoon baseball fans. Sunshine baseball and a packed house.
+br_double_header,inning_bridge,Nightcap of a twin bill. Legs are heavy but pride is full.
+br_rookie_debut,batter_intro,A big league debut tonight. The first at-bat is one he will remember forever.
+br_veteran_milestone,batter_intro,A milestone watch tonight for a respected veteran of this game.
+br_opposite_hand,pitching,Lefty-on-righty matchup here with the slider away as the put-away pitch.
+br_championship_aura,postseason,You can smell October in the air. Every pitch feels like it weighs a ton.

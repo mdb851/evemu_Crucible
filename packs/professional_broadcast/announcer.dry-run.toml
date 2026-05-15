@@ -1,0 +1,20 @@
+[project]
+name = "OOTP 27 Professional Broadcast Announcer"
+game = "OOTP 27"
+
+[ootp]
+root = ""
+pronunciation_file = "data/misc/pronunciation.txt"
+
+[voice]
+backend = "dry-run"
+piper_binary = "piper"
+piper_model = ""
+speaker_id = ""
+command_template = ""
+
+[audio]
+extension = "wav"
+
+[build]
+delay_seconds_after_each_line = 0.0

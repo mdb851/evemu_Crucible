@@ -9,3 +9,4 @@ dist/
 *.egg-info/
 announcer.toml
 voice-pack/
+.elevenlabs_api_key

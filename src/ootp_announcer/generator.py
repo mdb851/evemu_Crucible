@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import time
 
 from .config import AnnouncerConfig
 from .script import ScriptLine
@@ -19,7 +20,8 @@ def build_voice_pack(
     audio_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_lines = []
-    for line in lines:
+    delay = config.build.delay_seconds_after_each_line
+    for index, line in enumerate(lines):
         audio_path = audio_dir / line.filename
         synthesize(line.text, audio_path, config.voice)
         manifest_lines.append(
@@ -30,12 +32,17 @@ def build_voice_pack(
                 "audio": str(audio_path.relative_to(output_dir)),
             }
         )
+        if delay > 0.0 and index + 1 < len(lines):
+            time.sleep(delay)
 
     manifest = {
         "name": config.name,
         "game": config.game,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "voice_backend": config.voice.backend,
+        "build": {
+            "delay_seconds_after_each_line": config.build.delay_seconds_after_each_line,
+        },
         "ootp": {
             "root": str(config.ootp.root) if config.ootp.root else "",
             "pronunciation_file": config.ootp.pronunciation_file,

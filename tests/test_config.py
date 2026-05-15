@@ -16,6 +16,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.game, "OOTP 27")
         self.assertEqual(config.voice.backend, "dry-run")
         self.assertEqual(config.audio.extension, "wav")
+        self.assertEqual(config.build.delay_seconds_after_each_line, 0.0)
 
     def test_rejects_unknown_backend(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
