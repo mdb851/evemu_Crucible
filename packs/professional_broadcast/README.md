@@ -1,6 +1,6 @@
 # Professional broadcast announcer pack
 
-Network-style play-by-play lines for **OOTP 27** voice pack generation: measured openers, situational tension, hits, outs, pitching moves, baserunning, replay, weather, walk-offs, and postseason energy.
+Included with **OOTP 27 Realistic Announcer** (`ootp27-realistic-announcer`). Network-style play-by-play lines for **OOTP 27** voice pack generation: measured openers, situational tension, hits, outs, pitching moves, baserunning, replay, weather, walk-offs, and postseason energy.
 
 ## Quick build (dry run, no API)
 

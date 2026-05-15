@@ -132,7 +132,7 @@ def load_config(path: Path) -> AnnouncerConfig:
             )
 
     return AnnouncerConfig(
-        name=str(project.get("name", "Realistic OOTP Announcer")),
+        name=str(project.get("name", "OOTP 27 Realistic Announcer")),
         game=str(project.get("game", "OOTP 27")),
         ootp=OotpSettings(
             root=_optional_path(ootp.get("root")),
@@ -163,7 +163,7 @@ def load_config(path: Path) -> AnnouncerConfig:
 def default_config_text(ootp_root: Path | None = None) -> str:
     root_value = "" if ootp_root is None else str(ootp_root)
     return f"""[project]
-name = "Realistic OOTP Announcer"
+name = "OOTP 27 Realistic Announcer"
 game = "OOTP 27"
 
 [ootp]

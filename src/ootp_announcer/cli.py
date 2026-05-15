@@ -25,8 +25,8 @@ from .tts import (
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="ootp-announcer",
-        description="Build a realistic announcer voice pack for OOTP 27.",
+        prog="ootp27-announcer",
+        description="OOTP 27 Realistic Announcer — build voice packs from CSV (Piper, ElevenLabs, or custom TTS).",
     )
     subcommands = parser.add_subparsers(dest="command", required=True)
 

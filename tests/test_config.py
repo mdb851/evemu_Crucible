@@ -13,6 +13,7 @@ class ConfigTests(unittest.TestCase):
 
             config = load_config(config_path)
 
+        self.assertEqual(config.name, "OOTP 27 Realistic Announcer")
         self.assertEqual(config.game, "OOTP 27")
         self.assertEqual(config.voice.backend, "dry-run")
         self.assertEqual(config.audio.extension, "wav")

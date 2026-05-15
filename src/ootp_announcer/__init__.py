@@ -1,4 +1,4 @@
-"""Tools for building realistic OOTP announcer voice packs."""
+"""OOTP 27 Realistic Announcer — voice pack tools for Out of the Park Baseball 27."""
 
 __all__ = ["__version__"]
 

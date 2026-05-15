@@ -1,7 +1,8 @@
 # OOTP 27 Realistic Announcer
 
-This repository is a clean starter project for replacing OOTP 27's robotic
-text-to-speech workflow with a generated, realistic announcer voice pack.
+**OOTP 27 Realistic Announcer** is a small toolkit for **Out of the Park Baseball 27**: turn announcer copy in CSV into a **voice pack** (one audio file per line plus `manifest.json`), with optional harvesting of in-game English text. It replaces the stock robotic TTS workflow for lines you choose to pre-generate.
+
+Installable Python package: **`ootp27-realistic-announcer`** (import and module path remain `ootp_announcer`). If your **Scripts** directory is on `PATH`, you can run the **`ootp27-announcer`** entry point instead of `python -m ootp_announcer`.
 
 The code is intentionally local-first:
 
@@ -29,7 +30,7 @@ python -m ootp_announcer init-config --output announcer.toml
 python -m ootp_announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
 ```
 
-On Windows PowerShell, use the same `python -m ootp_announcer ...` commands after `pip install`. The shorter `ootp-announcer` command works only if your Python **Scripts** folder is on `PATH`.
+On Windows PowerShell, use the same `python -m ootp_announcer ...` commands after `pip install -e .` or `pip install -e ".[dev]"`. If your Python **Scripts** folder is on `PATH`, you can use the **`ootp27-announcer`** command instead.
 
 The default config uses `dry-run`, which writes text sidecars and a manifest
 without requiring a TTS engine.
@@ -148,3 +149,7 @@ OOTP's built-in announcer uses the game's own TTS/PBP systems. This project
 creates high-quality audio assets and a manifest so the next integration step
 can be based on the actual OOTP 27 files found on your PC, such as play-by-play,
 pronunciation, sound, or mod folders.
+
+## Repository name
+
+If the Git remote still uses an older slug from another tree, consider renaming the GitHub repository to **`ootp27-realistic-announcer`** so it matches the PyPI package name. The clone path is not used by the tools.

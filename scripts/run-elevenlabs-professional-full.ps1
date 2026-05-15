@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Full ElevenLabs build of the professional OOTP announcer pack (109 lines).
+  OOTP 27 Realistic Announcer — full ElevenLabs build of the professional pack (109 lines).
 
 .DESCRIPTION
-  Put your API key in a ONE-LINE file named .elevenlabs_api_key in the repo root
+  Part of the ootp27-realistic-announcer project. Put your API key in a ONE-LINE file named .elevenlabs_api_key in the repo root
   (that file is gitignored). Or set ELEVENLABS_API_KEY / ELEVENLABS_API_KEY_FILE yourself.
 
   Then run this script from anywhere:

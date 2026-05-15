@@ -3,13 +3,13 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ootp-announcer"
+name = "ootp27-realistic-announcer"
 version = "0.1.0"
-description = "Local tools for building a realistic OOTP 27 announcer voice pack."
+description = "OOTP 27 Realistic Announcer — build CSV-driven voice packs (Piper, ElevenLabs, or custom TTS), manifests, and optional PBP text harvest."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-  { name = "OOTP Announcer Project" }
+  { name = "OOTP 27 Realistic Announcer" }
 ]
 dependencies = []
 
@@ -19,7 +19,7 @@ dev = [
 ]
 
 [project.scripts]
-ootp-announcer = "ootp_announcer.cli:main"
+ootp27-announcer = "ootp_announcer.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
