@@ -126,7 +126,7 @@ On the PC where **OOTP 27** is installed, you can pull readable sentences out of
 python -m ootp_announcer harvest-pbp --out build\harvested-pbp-lines.csv
 ```
 
-That searches every **FOUND** path from `discover`. To point at one install explicitly:
+That searches every **FOUND** path from `discover` (including extra Steam library disks parsed from `steamapps\libraryfolders.vdf`, shown as `steam-library`). To point at one install explicitly:
 
 ```powershell
 python -m ootp_announcer discover
