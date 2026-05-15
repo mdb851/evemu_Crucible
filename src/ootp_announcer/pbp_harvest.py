@@ -36,22 +36,50 @@ class _VisibleTextCollector(HTMLParser):
             self.chunks.append(chunk)
 
 
-def _pbp_html_sort_key(path: Path) -> tuple[int, str]:
-    """Prefer language folders, then stable path order."""
+def _pbp_source_sort_key(path: Path) -> tuple[int, str]:
+    """Prefer data/text language files, then language folders, then stable path order."""
     s = str(path).casefold()
-    if "language" in s or "\\lang\\" in s or "/lang/" in s or "languagetext" in s:
+    if "data" in s and "text" in s and "english" in s:
         return (0, s)
-    if "localization" in s or "gamedata" in s:
+    if path.suffix.casefold() == ".xml" and "english" in path.name.casefold():
         return (1, s)
-    return (2, s)
+    if "language" in s or "\\lang\\" in s or "/lang/" in s or "languagetext" in s:
+        return (2, s)
+    if "localization" in s or "gamedata" in s:
+        return (3, s)
+    return (4, s)
 
 
 def _name_is_exact_english_html(path: Path) -> bool:
     return path.is_file() and path.name.casefold() in ("english.html", "english.htm")
 
 
+def _name_is_exact_english_xml(path: Path) -> bool:
+    return path.is_file() and path.name.casefold() == "english.xml"
+
+
+def _looks_like_ootp_english_xml(path: Path) -> bool:
+    if not path.is_file() or path.suffix.casefold() != ".xml":
+        return False
+    low_name = path.name.casefold()
+    low_full = str(path).casefold()
+    if "english" not in low_name:
+        return False
+    hints = (
+        "text",
+        "language",
+        "languagetext",
+        "localization",
+        "data",
+        "gamedata",
+        "pbp",
+        "playbyplay",
+    )
+    return any(h in low_full for h in hints)
+
+
 def _looks_like_ootp_pbp_english(path: Path) -> bool:
-    """Heuristic when the game ships a nonstandard filename."""
+    """Heuristic when the game ships a nonstandard HTML filename."""
     if not path.is_file():
         return False
     low_name = path.name.casefold()
@@ -76,7 +104,7 @@ def _looks_like_ootp_pbp_english(path: Path) -> bool:
 
 
 def find_pbp_language_html(install_root: Path) -> list[Path]:
-    """Return likely play-by-play HTML files under an OOTP install root."""
+    """Return likely English PBP/UI markup files (.html, .htm, .xml) under an OOTP install root."""
     root = install_root.expanduser().resolve()
     if not root.is_dir():
         return []
@@ -89,6 +117,8 @@ def find_pbp_language_html(install_root: Path) -> list[Path]:
         Path("Languages") / "english.html",
         Path("english.html"),
         Path("English.html"),
+        Path("data") / "text" / "english.xml",
+        Path("Data") / "Text" / "english.xml",
     ):
         p = root / rel
         if p.is_file():
@@ -102,6 +132,13 @@ def find_pbp_language_html(install_root: Path) -> list[Path]:
         except OSError:
             continue
 
+    try:
+        for p in root.rglob("*.xml"):
+            if _name_is_exact_english_xml(p):
+                found.add(p.resolve())
+    except OSError:
+        pass
+
     if not found:
         for pattern in ("*.html", "*.htm"):
             try:
@@ -111,11 +148,19 @@ def find_pbp_language_html(install_root: Path) -> list[Path]:
             except OSError:
                 continue
 
-    return sorted(found, key=_pbp_html_sort_key)
+    if not found:
+        try:
+            for p in root.rglob("*.xml"):
+                if _looks_like_ootp_english_xml(p):
+                    found.add(p.resolve())
+        except OSError:
+            pass
+
+    return sorted(found, key=_pbp_source_sort_key)
 
 
 def suggest_html_files_for_verbose(install_root: Path, *, limit: int = 60) -> list[Path]:
-    """List HTML paths that may be language/PBP text (for troubleshooting)."""
+    """List HTML/XML paths that may be language/PBP text (for troubleshooting)."""
     root = install_root.expanduser().resolve()
     if not root.is_dir():
         return []
@@ -128,20 +173,33 @@ def suggest_html_files_for_verbose(install_root: Path, *, limit: int = 60) -> li
         "playbyplay",
         "commentary",
         "gamedata",
+        "text",
     )
     out: list[Path] = []
     try:
-        for p in root.rglob("*.html"):
-            if not p.is_file():
-                continue
-            low = str(p).casefold()
-            if any(n in low for n in needles):
-                out.append(p.resolve())
-                if len(out) >= limit:
-                    break
+        for pattern in ("*.html", "*.xml"):
+            for p in root.rglob(pattern):
+                if not p.is_file():
+                    continue
+                low = str(p).casefold()
+                if any(n in low for n in needles):
+                    out.append(p.resolve())
+                    if len(out) >= limit:
+                        return sorted(set(out), key=lambda x: str(x).casefold())
     except OSError:
         return out[:limit]
     return sorted(set(out), key=lambda x: str(x).casefold())
+
+
+def _strip_markup_to_plain(raw: str) -> str:
+    """Strip XML/HTML tags (and simple CDATA) for loose text extraction."""
+    t = re.sub(r"(?is)<\?xml[^>]*\?>", " ", raw)
+    t = re.sub(r"(?is)<!\[CDATA\[(.*?)\]\]>", r"\1", t)
+    t = re.sub(r"(?is)<script.*?>.*?</script>", " ", t)
+    t = re.sub(r"(?is)<style.*?>.*?</style>", " ", t)
+    t = re.sub(r"<[^>]+>", " ", t)
+    t = html_module.unescape(t)
+    return _WS.sub(" ", t).strip()
 
 
 def _flatten_placeholders(text: str) -> str:
@@ -182,15 +240,19 @@ def harvest_phrases_from_html(
 ) -> list[str]:
     raw = path.read_text(encoding="utf-8", errors="replace")
     collector = _VisibleTextCollector()
-    try:
-        collector.feed(raw)
-        collector.close()
-    except Exception:
-        collector = _VisibleTextCollector()
-        stripped = re.sub(r"(?is)<script.*?>.*?</script>", " ", raw)
-        stripped = re.sub(r"(?is)<style.*?>.*?</style>", " ", stripped)
-        stripped = re.sub(r"<[^>]+>", " ", stripped)
-        collector.chunks = [c.strip() for c in _WS.split(stripped) if c.strip()]
+    if path.suffix.casefold() == ".xml":
+        plain = _strip_markup_to_plain(raw)
+        collector.chunks = [plain] if plain else []
+    else:
+        try:
+            collector.feed(raw)
+            collector.close()
+        except Exception:
+            collector = _VisibleTextCollector()
+            stripped = re.sub(r"(?is)<script.*?>.*?</script>", " ", raw)
+            stripped = re.sub(r"(?is)<style.*?>.*?</style>", " ", stripped)
+            stripped = re.sub(r"<[^>]+>", " ", stripped)
+            collector.chunks = [c.strip() for c in _WS.split(stripped) if c.strip()]
 
     phrases: list[str] = []
     for chunk in collector.chunks:

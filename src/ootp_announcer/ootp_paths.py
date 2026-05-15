@@ -19,6 +19,13 @@ def _env_path(name: str) -> Path | None:
     return Path(value).expanduser() if value else None
 
 
+# Steam / installs use the long folder name; some docs and older paths use the short name.
+_OOTP_27_INSTALL_FOLDER_NAMES: tuple[str, ...] = (
+    "Out of the Park Baseball 27",
+    "OOTP Baseball 27",
+)
+
+
 _STEAM_VDF_PATH_KEY = re.compile(r'"path"\s+"([^"]*)"')
 
 
@@ -82,8 +89,9 @@ def _windows_steam_library_ootp_candidates() -> list[tuple[Path, str]]:
         except OSError:
             continue
         for lib_root in library_roots_from_steam_libraryfolders_vdf(text):
-            game = lib_root / "steamapps" / "common" / "OOTP Baseball 27"
-            out.append((game, "steam-library"))
+            for game_name in _OOTP_27_INSTALL_FOLDER_NAMES:
+                game = lib_root / "steamapps" / "common" / game_name
+                out.append((game, "steam-library"))
     return out
 
 
@@ -91,41 +99,53 @@ def _windows_candidates() -> list[tuple[Path, str]]:
     candidates: list[tuple[Path, str]] = []
     for env_name in ("PROGRAMFILES", "PROGRAMFILES(X86)"):
         base = _env_path(env_name)
-        if base is not None:
-            candidates.extend(
-                [
-                    (base / "Out of the Park Developments" / "OOTP Baseball 27", "install"),
-                    (base / "Steam" / "steamapps" / "common" / "OOTP Baseball 27", "steam"),
-                ]
-            )
+        if base is None:
+            continue
+        for game_name in _OOTP_27_INSTALL_FOLDER_NAMES:
+            candidates.append((base / "Out of the Park Developments" / game_name, "install"))
+            candidates.append((base / "Steam" / "steamapps" / "common" / game_name, "steam"))
 
     documents = _env_path("USERPROFILE")
     if documents is not None:
-        candidates.append(
-            (
-                documents
-                / "Documents"
-                / "Out of the Park Developments"
-                / "OOTP Baseball 27",
-                "user-data",
+        for game_name in _OOTP_27_INSTALL_FOLDER_NAMES:
+            candidates.append(
+                (
+                    documents
+                    / "Documents"
+                    / "Out of the Park Developments"
+                    / game_name,
+                    "user-data",
+                )
             )
-        )
 
     for env_name in ("LOCALAPPDATA", "APPDATA"):
         base = _env_path(env_name)
-        if base is not None:
-            candidates.append((base / "Out of the Park Developments" / "OOTP Baseball 27", "config"))
+        if base is None:
+            continue
+        for game_name in _OOTP_27_INSTALL_FOLDER_NAMES:
+            candidates.append((base / "Out of the Park Developments" / game_name, "config"))
 
     return candidates
 
 
 def _linux_candidates() -> list[tuple[Path, str]]:
     home = Path.home()
-    return [
-        (home / ".steam" / "steam" / "steamapps" / "common" / "OOTP Baseball 27", "steam"),
-        (home / ".local" / "share" / "Steam" / "steamapps" / "common" / "OOTP Baseball 27", "steam"),
-        (home / "Documents" / "Out of the Park Developments" / "OOTP Baseball 27", "user-data"),
-    ]
+    out: list[tuple[Path, str]] = []
+    for game_name in _OOTP_27_INSTALL_FOLDER_NAMES:
+        out.extend(
+            [
+                (home / ".steam" / "steam" / "steamapps" / "common" / game_name, "steam"),
+                (home / ".local" / "share" / "Steam" / "steamapps" / "common" / game_name, "steam"),
+            ]
+        )
+    for game_name in _OOTP_27_INSTALL_FOLDER_NAMES:
+        out.append(
+            (
+                home / "Documents" / "Out of the Park Developments" / game_name,
+                "user-data",
+            )
+        )
+    return out
 
 
 def likely_candidates(extra_root: Path | None = None) -> list[OotpPathCandidate]:

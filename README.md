@@ -120,7 +120,7 @@ command_template = "my-tts-cli --voice stadium --text {text} --output {output}"
 
 ## Harvesting phrases from the game (option 1)
 
-On the PC where **OOTP 27** is installed, you can pull readable sentences out of the shipped **English.html** (play-by-play / UI prose) into a CSV, then merge the rows you want into your own script before `build`:
+On the PC where **OOTP 27** is installed, you can pull readable sentences out of the shipped **english.xml** (often under `data\text`) or **English.html** into a CSV, then merge the rows you want into your own script before `build`:
 
 ```powershell
 python -m ootp_announcer harvest-pbp --out build\harvested-pbp-lines.csv
@@ -137,7 +137,8 @@ Lines that still contain unresolved `{placeholders}` are dropped; simple `{name}
 
 If `harvest-pbp` reports no `English.html`, the install path is wrong or the game uses a different layout. Try:
 
-- Right-click **OOTP 27** in Steam → **Manage** → **Browse local files**, then pass that folder as `--ootp-root`.
+- Right-click **OOTP 27** in Steam → **Manage** → **Browse local files**, then pass that folder as `--ootp-root` (Steam’s folder is often `Out of the Park Baseball 27`, not `OOTP Baseball 27`).
+- In **PowerShell**, wrap paths in **single quotes** if they contain `(x86)` or spaces so parentheses are not parsed as a subexpression: `'C:\Program Files (x86)\Steam\steamapps\common\Out of the Park Baseball 27'`.
 - Re-run with **`--verbose`** to print candidate HTML paths under `--ootp-root`.
 - Pass the file explicitly: **`--html-file "C:\full\path\to\English.html"`** (find the file in Explorer search inside the game folder).
 

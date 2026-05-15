@@ -72,13 +72,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     harvest = subcommands.add_parser(
         "harvest-pbp",
-        help="Extract candidate phrases from OOTP English.html (run on the PC where the game is installed)",
+        help="Extract candidate phrases from OOTP English markup (HTML or XML)",
     )
     harvest.add_argument(
         "--ootp-root",
         type=Path,
         default=None,
-        help="OOTP 27 folder; if omitted, every existing path from discover is searched",
+        help="OOTP 27 install folder, or a single .html/.htm/.xml file (e.g. data\\text\\english.xml)",
     )
     harvest.add_argument(
         "--out",
@@ -106,12 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=None,
         metavar="PATH",
-        help="Use this HTML file directly (repeat for multiple). Use when auto-discovery fails.",
+        help="Use this .html, .htm, or .xml file directly (repeat for multiple). Use when auto-discovery fails.",
     )
     harvest.add_argument(
         "--verbose",
         action="store_true",
-        help="If discovery fails, print candidate HTML paths under --ootp-root",
+        help="If discovery fails, print candidate HTML/XML paths under --ootp-root",
     )
     harvest.set_defaults(func=_harvest_pbp)
 
@@ -209,56 +209,77 @@ def _harvest_pbp(args: argparse.Namespace) -> int:
         if not all_files:
             print(
                 "No valid --html-file paths. In Explorer, search the OOTP install folder for "
-                "English.html (or *.html under languages), then pass the full path.",
+                "english.xml (under data\\text) or English.html, then pass the full path.",
                 file=sys.stderr,
             )
             return 2
     else:
-        roots: list[Path] = []
-        if args.ootp_root is not None:
-            roots = [args.ootp_root.expanduser()]
+        ootp_arg = args.ootp_root.expanduser() if args.ootp_root is not None else None
+
+        if ootp_arg is not None:
+            if not ootp_arg.exists():
+                print(
+                    f"Path does not exist: {ootp_arg}\n"
+                    "In PowerShell prefer single quotes around paths with (x86) or spaces, e.g. "
+                    r"--ootp-root 'C:\Program Files (x86)\Steam\steamapps\common\Out of the Park Baseball 27'",
+                    file=sys.stderr,
+                )
+                return 2
+            if ootp_arg.is_file():
+                suf = ootp_arg.suffix.casefold()
+                if suf in (".html", ".htm", ".xml"):
+                    all_files = [ootp_arg.resolve()]
+                else:
+                    print(
+                        f"Unsupported file type {ootp_arg.suffix!r}: use .html, .htm, or .xml, "
+                        "or pass the game install folder.",
+                        file=sys.stderr,
+                    )
+                    return 2
+            else:
+                roots = [ootp_arg]
+                for root in roots:
+                    r = root.expanduser().resolve()
+                    if r.is_dir():
+                        all_files.extend(find_pbp_language_html(r))
+                all_files = sorted(set(all_files), key=lambda x: str(x).casefold())
         else:
             roots = [c.path for c in likely_candidates(None) if c.exists]
-
-        for root in roots:
-            r = root.expanduser().resolve()
-            if not r.is_dir():
-                continue
-            all_files.extend(find_pbp_language_html(r))
-        all_files = sorted(set(all_files), key=lambda x: str(x).casefold())
+            for root in roots:
+                r = root.expanduser().resolve()
+                if r.is_dir():
+                    all_files.extend(find_pbp_language_html(r))
+            all_files = sorted(set(all_files), key=lambda x: str(x).casefold())
 
         if not all_files:
             if args.ootp_root is not None:
                 root = args.ootp_root.expanduser()
-                if not root.is_dir():
-                    print(
-                        f"Not a directory (wrong drive, path, or game not installed here): {root}",
-                        file=sys.stderr,
-                    )
-                elif args.verbose:
-                    hints = suggest_html_files_for_verbose(root)
-                    if hints:
-                        print("HTML files that might be language/PBP (first batch):", file=sys.stderr)
-                        for h in hints:
-                            print(f"  {h}", file=sys.stderr)
+                if root.is_dir():
+                    if args.verbose:
+                        hints = suggest_html_files_for_verbose(root)
+                        if hints:
+                            print("HTML/XML files that might be language/PBP (first batch):", file=sys.stderr)
+                            for h in hints:
+                                print(f"  {h}", file=sys.stderr)
+                        else:
+                            print(
+                                f"No matching *.html / english.xml under {root.resolve()}. "
+                                "Is this the full game folder (not a shortcut)?",
+                                file=sys.stderr,
+                            )
                     else:
                         print(
-                            f"No *.html matched hints under {root.resolve()}. "
-                            "Is this the full game folder (not a shortcut)?",
+                            f"No English.html or english.xml under {root.resolve()}. "
+                            "Re-run with --verbose to list candidates, or pass --html-file with a full path.",
                             file=sys.stderr,
                         )
-                else:
-                    print(
-                        f"No English.html (or similar) under {root.resolve()}. "
-                        "Re-run with --verbose to list candidate HTML paths, or pass --html-file path\\to\\file.html",
-                        file=sys.stderr,
-                    )
             else:
                 print(
-                    "No English.html found under known paths. Install OOTP 27, run "
-                    "`python -m ootp_announcer discover`, then pass --ootp-root to the FOUND install or Steam folder. "
-                    "If the game lives on another drive, use that full path. "
-                    "You can also pass --html-file with the path to English.html from Explorer.",
+                    "No English markup found under known paths. Install OOTP 27, run "
+                    "`python -m ootp_announcer discover`, then pass --ootp-root to a FOUND folder. "
+                    "Steam often uses 'Out of the Park Baseball 27' under steamapps\\common. "
+                    "Use single quotes in PowerShell for paths that contain (x86). "
+                    "You can also pass --html-file with the path to data\\text\\english.xml.",
                     file=sys.stderr,
                 )
             return 2
@@ -280,7 +301,7 @@ def _harvest_pbp(args: argparse.Namespace) -> int:
 
     if not rows:
         print(
-            "Parsed HTML but found no usable phrases. Try lowering --min-chars (e.g. 12).",
+            "Parsed markup but found no usable phrases. Try lowering --min-chars (e.g. 12).",
             file=sys.stderr,
         )
         return 3

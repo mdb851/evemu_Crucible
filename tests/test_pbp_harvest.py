@@ -156,12 +156,64 @@ class HarvestCliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("sample sentence", out.read_text(encoding="utf-8"))
 
-    def test_cli_rejects_missing_ootp_root(self) -> None:
+    def test_finds_data_text_english_xml(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            text_dir = root / "data" / "text"
+            text_dir.mkdir(parents=True)
+            target = text_dir / "english.xml"
+            target.write_text(
+                "<root><p>First sentence is long enough for harvest rules here.</p></root>",
+                encoding="utf-8",
+            )
+            found = find_pbp_language_html(root)
+            self.assertEqual(found, [target.resolve()])
+
+    def test_harvest_xml_sentences(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "english.xml"
+            path.write_text(
+                "<root><line>Another long enough sentence for harvest from xml content.</line></root>",
+                encoding="utf-8",
+            )
+            phrases = harvest_phrases_from_html(path, min_chars=20, max_chars=400)
+            self.assertTrue(any("sentence" in p for p in phrases))
+
+    def test_cli_ootp_root_accepts_xml_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            xml = root / "english.xml"
+            xml.write_text(
+                "<t><![CDATA[This is a long enough phrase from CDATA for harvest.]]></t>",
+                encoding="utf-8",
+            )
             out = root / "out.csv"
-            bogus = root / "not_a_folder"
-            code = main(["harvest-pbp", "--ootp-root", str(bogus), "--out", str(out)])
+            code = main(
+                [
+                    "harvest-pbp",
+                    "--ootp-root",
+                    str(xml),
+                    "--out",
+                    str(out),
+                    "--min-chars",
+                    "15",
+                ]
+            )
+            self.assertEqual(code, 0)
+            self.assertIn("long enough", out.read_text(encoding="utf-8"))
+
+    def test_cli_path_not_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "out.csv"
+            code = main(
+                [
+                    "harvest-pbp",
+                    "--ootp-root",
+                    str(Path(directory) / "does_not_exist_folder"),
+                    "--out",
+                    str(out),
+                ]
+            )
             self.assertEqual(code, 2)
 
 
