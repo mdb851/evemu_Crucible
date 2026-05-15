@@ -9,8 +9,8 @@ pronunciation_file = "data/misc/pronunciation.txt"
 [voice]
 backend = "elevenlabs"
 elevenlabs_voice_id = "iP95p4xoKVk53GoZ742B"
-# eleven_multilingual_v2 is strong for narration; eleven_turbo_v2_5 is faster for bulk builds.
-elevenlabs_model_id = "eleven_multilingual_v2"
+# Default: eleven_turbo_v2_5 for cheaper bulk builds. Use eleven_multilingual_v2 for richer narration.
+elevenlabs_model_id = "eleven_turbo_v2_5"
 elevenlabs_output_format = "mp3_44100_128"
 # Broadcast-friendly defaults: controlled but alive.
 elevenlabs_stability = 0.42

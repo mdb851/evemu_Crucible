@@ -172,6 +172,41 @@ def _elevenlabs_api_key(voice: VoiceSettings) -> str:
     return key
 
 
+def _elevenlabs_http_error_hint(status_code: int, detail_text: str) -> str:
+    """Short hint for common ElevenLabs HTTP error bodies (JSON or plain text)."""
+    low = detail_text.lower()
+    status = ""
+    try:
+        blob = json.loads(detail_text)
+    except json.JSONDecodeError:
+        blob = None
+    if isinstance(blob, dict):
+        inner = blob.get("detail")
+        if isinstance(inner, dict):
+            status = str(inner.get("status", "")).lower()
+        elif isinstance(inner, str):
+            status = inner.lower()
+    if status == "quota_exceeded" or "quota_exceeded" in low or "credits remaining" in low:
+        return (
+            " This is your ElevenLabs usage/credit limit (not a wrong password). "
+            "See credits required vs remaining in the message. Fix: add credits / upgrade plan, "
+            "wait for quota reset, use model eleven_turbo_v2_5 (often cheaper), shorten lines, "
+            "or build fewer lines with --max-lines."
+        )
+    if status == "invalid_api_key" or "invalid_api_key" in low:
+        return (
+            " ElevenLabs rejected the API key. Check the key in Notepad (one line). "
+            "If using ELEVENLABS_API_KEY_FILE, run Remove-Item Env:ELEVENLABS_API_KEY. "
+            "Create a fresh key in ElevenLabs → Profile → API keys if needed."
+        )
+    if status_code == 429 or "too many requests" in low:
+        return (
+            " Rate limited: wait briefly, increase delay_seconds_after_each_line in your TOML, "
+            "or build in smaller batches (--max-lines)."
+        )
+    return ""
+
+
 def fetch_elevenlabs_user_json(api_key: str) -> dict[str, object]:
     """Call GET /v1/user to confirm the API key is valid (no audio generation)."""
     key = _normalize_elevenlabs_api_key(api_key)
@@ -188,14 +223,7 @@ def fetch_elevenlabs_user_json(api_key: str) -> dict[str, object]:
             raw = response.read().decode("utf-8", errors="replace")
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        hint = ""
-        if exc.code == 401:
-            hint = (
-                " Copy the key again from ElevenLabs → Profile → API keys. Use Notepad: one line, "
-                "no label text like 'API Key:' or 'xi-api-key:'. If the file has multiple lines, only the "
-                "first non-empty line is used. ELEVENLABS_API_KEY_FILE is read before ELEVENLABS_API_KEY; "
-                "still run Remove-Item Env:ELEVENLABS_API_KEY if you set a bad key earlier in this window."
-            )
+        hint = _elevenlabs_http_error_hint(exc.code, detail)
         raise TtsError(f"ElevenLabs HTTP {exc.code}: {detail[:2000]}.{hint}") from exc
     except URLError as exc:
         raise TtsError(f"ElevenLabs request failed: {exc.reason}") from exc
@@ -248,13 +276,7 @@ def _run_elevenlabs(text: str, output: Path, voice: VoiceSettings) -> None:
             data = response.read()
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        hint = ""
-        if exc.code == 401:
-            hint = (
-                " ElevenLabs rejected the API key. Check the key text (Notepad, one line, no labels). "
-                "If using ELEVENLABS_API_KEY_FILE, run Remove-Item Env:ELEVENLABS_API_KEY first so an old "
-                "env value cannot override. Create a fresh key under ElevenLabs → Profile → API keys if needed."
-            )
+        hint = _elevenlabs_http_error_hint(exc.code, detail)
         raise TtsError(f"ElevenLabs HTTP {exc.code}: {detail[:2000]}.{hint}") from exc
     except URLError as exc:
         raise TtsError(f"ElevenLabs request failed: {exc.reason}") from exc

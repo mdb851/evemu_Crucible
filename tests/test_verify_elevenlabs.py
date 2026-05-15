@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import os
 import unittest
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+from urllib.error import HTTPError
+
 from ootp_announcer.cli import main
-from ootp_announcer.tts import fetch_elevenlabs_user_json
+from ootp_announcer.tts import TtsError, fetch_elevenlabs_user_json
 
 
 class FetchElevenLabsUserTests(unittest.TestCase):
@@ -21,6 +24,28 @@ class FetchElevenLabsUserTests(unittest.TestCase):
             data = fetch_elevenlabs_user_json("sk-test-key-please-mock")
 
         self.assertEqual(data.get("subscription", {}).get("tier"), "free")
+
+    def test_fetch_quota_error_hint(self) -> None:
+        err = HTTPError(
+            "https://api.elevenlabs.io/v1/user",
+            401,
+            "Unauthorized",
+            {},
+            BytesIO(
+                json.dumps(
+                    {
+                        "detail": {
+                            "status": "quota_exceeded",
+                            "message": "x",
+                        }
+                    }
+                ).encode("utf-8"),
+            ),
+        )
+        with patch("ootp_announcer.tts.urlopen", side_effect=err):
+            with self.assertRaises(TtsError) as ctx:
+                fetch_elevenlabs_user_json("sk-test")
+        self.assertIn("usage/credit limit", str(ctx.exception))
 
 
 class VerifyCliTests(unittest.TestCase):

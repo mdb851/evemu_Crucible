@@ -88,11 +88,42 @@ class ElevenLabsTtsTests(unittest.TestCase):
                 401,
                 "Unauthorized",
                 {},
-                BytesIO(b'{"detail":"invalid"}'),
+                BytesIO(
+                    b'{"detail":{"status":"invalid_api_key","message":"bad"}}',
+                ),
             )
             with patch("ootp_announcer.tts.urlopen", side_effect=err):
-                with self.assertRaisesRegex(TtsError, "ElevenLabs HTTP 401"):
+                with self.assertRaises(TtsError) as ctx:
                     synthesize("Hi", out, voice)
+        self.assertIn("ElevenLabs HTTP 401", str(ctx.exception))
+        self.assertIn("rejected the API key", str(ctx.exception))
+
+    def test_http_error_quota_hint_not_key_blame(self) -> None:
+        voice = replace(_default_elevenlabs_voice(), elevenlabs_api_key="test-key")
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "line.mp3"
+            err = HTTPError(
+                "https://api.elevenlabs.io/v1/text-to-speech/x",
+                401,
+                "Unauthorized",
+                {},
+                BytesIO(
+                    json.dumps(
+                        {
+                            "detail": {
+                                "status": "quota_exceeded",
+                                "message": "25 credits remaining, 66 required",
+                            }
+                        }
+                    ).encode("utf-8"),
+                ),
+            )
+            with patch("ootp_announcer.tts.urlopen", side_effect=err):
+                with self.assertRaises(TtsError) as ctx:
+                    synthesize("Hi", out, voice)
+        msg = str(ctx.exception)
+        self.assertIn("usage/credit limit", msg)
+        self.assertNotIn("rejected the API key", msg)
 
 
 class ElevenLabsKeyfileTests(unittest.TestCase):
