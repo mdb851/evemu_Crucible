@@ -10,6 +10,7 @@ from ootp_announcer.pbp_harvest import (
     find_pbp_language_html,
     harvest_phrases_from_html,
     phrases_to_csv_rows,
+    suggest_html_files_for_verbose,
     write_harvest_csv,
 )
 
@@ -24,6 +25,35 @@ class FindPbpHtmlTests(unittest.TestCase):
             target.write_text("<html></html>", encoding="utf-8")
             found = find_pbp_language_html(root)
             self.assertEqual(found, [target.resolve()])
+
+    def test_finds_english_html_nested_anywhere(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            deep = root / "assets" / "nested"
+            deep.mkdir(parents=True)
+            target = deep / "English.html"
+            target.write_text("<html></html>", encoding="utf-8")
+            found = find_pbp_language_html(root)
+            self.assertEqual(found, [target.resolve()])
+
+    def test_heuristic_pbp_english_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pdir = root / "mod_pbp"
+            pdir.mkdir(parents=True)
+            target = pdir / "game_english_lines.html"
+            target.write_text("<html></html>", encoding="utf-8")
+            found = find_pbp_language_html(root)
+            self.assertIn(target.resolve(), found)
+
+
+class SuggestHtmlTests(unittest.TestCase):
+    def test_suggest_lists_language_like_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "language_ui.html").write_text("<p>x</p>", encoding="utf-8")
+            hints = suggest_html_files_for_verbose(root)
+            self.assertTrue(any("language_ui" in str(h) for h in hints))
 
 
 class HarvestPhrasesTests(unittest.TestCase):
@@ -101,6 +131,37 @@ class HarvestCliTests(unittest.TestCase):
             root = Path(directory)
             out = root / "out.csv"
             code = main(["harvest-pbp", "--ootp-root", str(root), "--out", str(out)])
+            self.assertEqual(code, 2)
+
+    def test_cli_accepts_html_file_directly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            html = root / "custom.html"
+            html.write_text(
+                "<html><body><p>This is a long enough sample sentence for the harvester.</p></body></html>",
+                encoding="utf-8",
+            )
+            out = root / "out.csv"
+            code = main(
+                [
+                    "harvest-pbp",
+                    "--html-file",
+                    str(html),
+                    "--out",
+                    str(out),
+                    "--min-chars",
+                    "10",
+                ]
+            )
+            self.assertEqual(code, 0)
+            self.assertIn("sample sentence", out.read_text(encoding="utf-8"))
+
+    def test_cli_rejects_missing_ootp_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            out = root / "out.csv"
+            bogus = root / "not_a_folder"
+            code = main(["harvest-pbp", "--ootp-root", str(bogus), "--out", str(out)])
             self.assertEqual(code, 2)
 
 

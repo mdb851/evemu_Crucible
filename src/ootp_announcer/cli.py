@@ -12,6 +12,7 @@ from .pbp_harvest import (
     find_pbp_language_html,
     harvest_phrases_from_html,
     phrases_to_csv_rows,
+    suggest_html_files_for_verbose,
     write_harvest_csv,
 )
 from .script import load_script
@@ -99,6 +100,19 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Drop very long blocks; split sentences already applied inside each HTML chunk",
     )
+    harvest.add_argument(
+        "--html-file",
+        type=Path,
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="Use this HTML file directly (repeat for multiple). Use when auto-discovery fails.",
+    )
+    harvest.add_argument(
+        "--verbose",
+        action="store_true",
+        help="If discovery fails, print candidate HTML paths under --ootp-root",
+    )
     harvest.set_defaults(func=_harvest_pbp)
 
     return parser
@@ -181,24 +195,73 @@ def _harvest_pbp(args: argparse.Namespace) -> int:
         print("--min-chars must be >= 1 and --max-chars must be >= --min-chars", file=sys.stderr)
         return 2
 
-    roots: list[Path] = []
-    if args.ootp_root is not None:
-        roots = [args.ootp_root.expanduser()]
-    else:
-        roots = [c.path for c in likely_candidates(None) if c.exists]
-
     all_files: list[Path] = []
-    for root in roots:
-        all_files.extend(find_pbp_language_html(root))
-    all_files = sorted(set(all_files), key=lambda x: str(x).lower())
+    html_files: list[Path] = list(args.html_file or [])
 
-    if not all_files:
-        print(
-            "No English.html found under known paths. Install OOTP 27, run "
-            "`python -m ootp_announcer discover`, then pass --ootp-root to the FOUND install or Steam folder.",
-            file=sys.stderr,
-        )
-        return 2
+    if html_files:
+        for f in html_files:
+            p = f.expanduser()
+            if p.is_file():
+                all_files.append(p.resolve())
+            else:
+                print(f"Not a file: {p}", file=sys.stderr)
+        all_files = sorted(set(all_files), key=lambda x: str(x).casefold())
+        if not all_files:
+            print(
+                "No valid --html-file paths. In Explorer, search the OOTP install folder for "
+                "English.html (or *.html under languages), then pass the full path.",
+                file=sys.stderr,
+            )
+            return 2
+    else:
+        roots: list[Path] = []
+        if args.ootp_root is not None:
+            roots = [args.ootp_root.expanduser()]
+        else:
+            roots = [c.path for c in likely_candidates(None) if c.exists]
+
+        for root in roots:
+            r = root.expanduser().resolve()
+            if not r.is_dir():
+                continue
+            all_files.extend(find_pbp_language_html(r))
+        all_files = sorted(set(all_files), key=lambda x: str(x).casefold())
+
+        if not all_files:
+            if args.ootp_root is not None:
+                root = args.ootp_root.expanduser()
+                if not root.is_dir():
+                    print(
+                        f"Not a directory (wrong drive, path, or game not installed here): {root}",
+                        file=sys.stderr,
+                    )
+                elif args.verbose:
+                    hints = suggest_html_files_for_verbose(root)
+                    if hints:
+                        print("HTML files that might be language/PBP (first batch):", file=sys.stderr)
+                        for h in hints:
+                            print(f"  {h}", file=sys.stderr)
+                    else:
+                        print(
+                            f"No *.html matched hints under {root.resolve()}. "
+                            "Is this the full game folder (not a shortcut)?",
+                            file=sys.stderr,
+                        )
+                else:
+                    print(
+                        f"No English.html (or similar) under {root.resolve()}. "
+                        "Re-run with --verbose to list candidate HTML paths, or pass --html-file path\\to\\file.html",
+                        file=sys.stderr,
+                    )
+            else:
+                print(
+                    "No English.html found under known paths. Install OOTP 27, run "
+                    "`python -m ootp_announcer discover`, then pass --ootp-root to the FOUND install or Steam folder. "
+                    "If the game lives on another drive, use that full path. "
+                    "You can also pass --html-file with the path to English.html from Explorer.",
+                    file=sys.stderr,
+                )
+            return 2
 
     dedupe_text: set[str] = set()
     rows: list[tuple[str, str, str]] = []

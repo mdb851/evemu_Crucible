@@ -135,6 +135,12 @@ python -m ootp_announcer harvest-pbp --ootp-root "C:\Program Files\Out of the Pa
 
 Lines that still contain unresolved `{placeholders}` are dropped; simple `{name}` tokens are stripped so the remainder can be spoken. Tune noise vs. yield with `--min-chars` / `--max-chars` (defaults 24 and 320). Expect to **curate** the CSV: some lines are interface text, not broadcasters.
 
+If `harvest-pbp` reports no `English.html`, the install path is wrong or the game uses a different layout. Try:
+
+- Right-click **OOTP 27** in Steam → **Manage** → **Browse local files**, then pass that folder as `--ootp-root`.
+- Re-run with **`--verbose`** to print candidate HTML paths under `--ootp-root`.
+- Pass the file explicitly: **`--html-file "C:\full\path\to\English.html"`** (find the file in Explorer search inside the game folder).
+
 ## Current integration target
 
 OOTP's built-in announcer uses the game's own TTS/PBP systems. This project

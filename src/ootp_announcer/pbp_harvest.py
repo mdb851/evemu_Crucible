@@ -36,13 +36,52 @@ class _VisibleTextCollector(HTMLParser):
             self.chunks.append(chunk)
 
 
+def _pbp_html_sort_key(path: Path) -> tuple[int, str]:
+    """Prefer language folders, then stable path order."""
+    s = str(path).casefold()
+    if "language" in s or "\\lang\\" in s or "/lang/" in s or "languagetext" in s:
+        return (0, s)
+    if "localization" in s or "gamedata" in s:
+        return (1, s)
+    return (2, s)
+
+
+def _name_is_exact_english_html(path: Path) -> bool:
+    return path.is_file() and path.name.casefold() in ("english.html", "english.htm")
+
+
+def _looks_like_ootp_pbp_english(path: Path) -> bool:
+    """Heuristic when the game ships a nonstandard filename."""
+    if not path.is_file():
+        return False
+    low_name = path.name.casefold()
+    low_full = str(path).casefold()
+    if path.suffix.casefold() not in (".html", ".htm"):
+        return False
+    if "english" not in low_name:
+        return False
+    hints = (
+        "language",
+        "languagetext",
+        "\\lang\\",
+        "/lang/",
+        "localization",
+        "gamedata",
+        "textdata",
+        "pbp",
+        "playbyplay",
+        "commentary",
+    )
+    return any(h in low_full for h in hints)
+
+
 def find_pbp_language_html(install_root: Path) -> list[Path]:
     """Return likely play-by-play HTML files under an OOTP install root."""
-    root = install_root.expanduser()
+    root = install_root.expanduser().resolve()
     if not root.is_dir():
         return []
 
-    direct: list[Path] = []
+    found: set[Path] = set()
     for rel in (
         Path("languages") / "English.html",
         Path("Languages") / "English.html",
@@ -53,17 +92,56 @@ def find_pbp_language_html(install_root: Path) -> list[Path]:
     ):
         p = root / rel
         if p.is_file():
-            direct.append(p.resolve())
+            found.add(p.resolve())
 
-    if direct:
-        return sorted(set(direct), key=lambda x: str(x).lower())
+    for pattern in ("*.html", "*.htm"):
+        try:
+            for p in root.rglob(pattern):
+                if _name_is_exact_english_html(p):
+                    found.add(p.resolve())
+        except OSError:
+            continue
 
-    found: list[Path] = []
-    for name in ("English.html", "english.html"):
-        for p in root.rglob(name):
-            if p.is_file():
-                found.append(p.resolve())
-    return sorted(set(found), key=lambda x: str(x).lower())
+    if not found:
+        for pattern in ("*.html", "*.htm"):
+            try:
+                for p in root.rglob(pattern):
+                    if _looks_like_ootp_pbp_english(p):
+                        found.add(p.resolve())
+            except OSError:
+                continue
+
+    return sorted(found, key=_pbp_html_sort_key)
+
+
+def suggest_html_files_for_verbose(install_root: Path, *, limit: int = 60) -> list[Path]:
+    """List HTML paths that may be language/PBP text (for troubleshooting)."""
+    root = install_root.expanduser().resolve()
+    if not root.is_dir():
+        return []
+    needles = (
+        "english",
+        "language",
+        "languagetext",
+        "localization",
+        "pbp",
+        "playbyplay",
+        "commentary",
+        "gamedata",
+    )
+    out: list[Path] = []
+    try:
+        for p in root.rglob("*.html"):
+            if not p.is_file():
+                continue
+            low = str(p).casefold()
+            if any(n in low for n in needles):
+                out.append(p.resolve())
+                if len(out) >= limit:
+                    break
+    except OSError:
+        return out[:limit]
+    return sorted(set(out), key=lambda x: str(x).casefold())
 
 
 def _flatten_placeholders(text: str) -> str:
