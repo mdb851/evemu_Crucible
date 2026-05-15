@@ -316,6 +316,14 @@ def _harvest_pbp(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if len(argv) == 1 and argv[0] in ("--version", "-V"):
+        from . import __version__
+
+        print(f"ootp27-announcer {__version__}")
+        return 0
+
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args))

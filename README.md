@@ -25,6 +25,7 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 
+python -m ootp_announcer --version
 python -m ootp_announcer discover
 python -m ootp_announcer init-config --output announcer.toml
 python -m ootp_announcer build --config announcer.toml --script examples/lines.csv --out build/voice-pack
@@ -131,24 +132,53 @@ That searches every **FOUND** path from `discover` (including extra Steam librar
 
 ```powershell
 python -m ootp_announcer discover
-python -m ootp_announcer harvest-pbp --ootp-root "C:\Program Files\Out of the Park Developments\OOTP Baseball 27" --out build\harvested-pbp-lines.csv
+python -m ootp_announcer harvest-pbp --ootp-root 'C:\Program Files (x86)\Steam\steamapps\common\Out of the Park Baseball 27' --out build\harvested-pbp-lines.csv
 ```
 
-Lines that still contain unresolved `{placeholders}` are dropped; simple `{name}` tokens are stripped so the remainder can be spoken. Tune noise vs. yield with `--min-chars` / `--max-chars` (defaults 24 and 320). Expect to **curate** the CSV: some lines are interface text, not broadcasters.
+Lines that still contain unresolved `{placeholders}` are dropped; simple `{name}` tokens are stripped so the remainder can be spoken. Tune noise vs. yield with `--min-chars` / `--max-chars` (defaults 24 and 320). Expect to **curate** the CSV: some lines are interface text, not broadcasters. Full `english.xml` harvests can be **10k+ rows**—merge only what you need before paying for cloud TTS.
 
 If `harvest-pbp` reports no `English.html`, the install path is wrong or the game uses a different layout. Try:
 
 - Right-click **OOTP 27** in Steam → **Manage** → **Browse local files**, then pass that folder as `--ootp-root` (Steam’s folder is often `Out of the Park Baseball 27`, not `OOTP Baseball 27`).
 - In **PowerShell**, wrap paths in **single quotes** if they contain `(x86)` or spaces so parentheses are not parsed as a subexpression: `'C:\Program Files (x86)\Steam\steamapps\common\Out of the Park Baseball 27'`.
-- Re-run with **`--verbose`** to print candidate HTML paths under `--ootp-root`.
+- Re-run with **`--verbose`** to print candidate HTML/XML paths under `--ootp-root`.
 - Pass the file explicitly: **`--html-file "C:\full\path\to\English.html"`** (find the file in Explorer search inside the game folder).
 
-## Current integration target
+## Scope (v1.0)
 
-OOTP's built-in announcer uses the game's own TTS/PBP systems. This project
-creates high-quality audio assets and a manifest so the next integration step
-can be based on the actual OOTP 27 files found on your PC, such as play-by-play,
-pronunciation, sound, or mod folders.
+**Included**
+
+- CLI: `discover`, `init-config`, `build` (with `--max-lines`, `--skip-existing`), `verify-elevenlabs`, `harvest-pbp` (HTML/XML, Steam library discovery, `--html-file`, `--verbose`).
+- TTS backends: `dry-run`, `piper`, `command`, `elevenlabs` (including key file / env handling and clearer API errors).
+- Example CSV, **professional broadcast** pack under `packs/professional_broadcast/`, and a PowerShell helper for ElevenLabs full builds.
+- Generated **voice pack layout** (see below) suitable for tooling or mods you wire up yourself.
+
+**Out of scope for v1.0**
+
+- A built-in OOTP mod that maps `manifest.json` cues to in-game events (game hooks differ by version and community tools).
+- Runtime substitution of live roster names into pre-baked audio (that requires either generic copy, a roster-driven generator, or game-side TTS).
+
+## End-to-end workflow
+
+1. On the game PC: `python -m ootp_announcer discover` → note **FOUND** paths.
+2. Author or merge CSV (`id`, `text`, optional `category` / `filename`); optionally `harvest-pbp` from `english.xml` and curate rows into your script.
+3. `init-config` (once) → edit `announcer.toml` for Piper, ElevenLabs, or `command` backend.
+4. `verify-elevenlabs` (if using ElevenLabs) → `build --out path\to\voice-pack` → use `--skip-existing` to resume interrupted runs.
+5. Point your OOTP integration or mod at the output folder (`manifest.json` + `audio/`).
+
+## Generated voice pack layout
+
+After `build`, the output directory contains:
+
+| Path | Purpose |
+| --- | --- |
+| `audio/*.{mp3,wav}` | One file per script line (extension from config). |
+| `manifest.json` | Pack metadata: `name`, `game`, `created_at`, `voice_backend`, `build`, `ootp`, and `lines[]` with `id`, `category`, `text`, `audio` path. |
+| `script-lines.json` | Snapshot of parsed CSV rows (ids, text, filenames) for reproducibility. |
+
+## License
+
+Distributed under the **MIT License**; see [`LICENSE`](LICENSE).
 
 ## Repository name
 
