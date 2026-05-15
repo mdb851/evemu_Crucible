@@ -15,6 +15,8 @@ def build_voice_pack(
     config: AnnouncerConfig,
     lines: list[ScriptLine],
     output_dir: Path,
+    *,
+    skip_existing: bool = False,
 ) -> Path:
     audio_dir = output_dir / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
@@ -23,7 +25,13 @@ def build_voice_pack(
     delay = config.build.delay_seconds_after_each_line
     for index, line in enumerate(lines):
         audio_path = audio_dir / line.filename
-        synthesize(line.text, audio_path, config.voice)
+        skip = (
+            skip_existing
+            and audio_path.is_file()
+            and audio_path.stat().st_size > 0
+        )
+        if not skip:
+            synthesize(line.text, audio_path, config.voice)
         manifest_lines.append(
             {
                 "id": line.cue_id,

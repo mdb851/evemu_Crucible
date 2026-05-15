@@ -49,6 +49,29 @@ class GeneratorTests(unittest.TestCase):
                 build_voice_pack(config, lines, output_dir)
             self.assertEqual(mock_sleep.call_count, 2)
 
+    def test_skip_existing_skips_nonempty_audio(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = root / "announcer.toml"
+            script_path = root / "lines.csv"
+            output_dir = root / "voice-pack"
+            config_path.write_text(default_config_text(), encoding="utf-8")
+            script_path.write_text(
+                "id,text\nwelcome,Welcome to OOTP.\nbye,Goodbye.\n",
+                encoding="utf-8",
+            )
+            config = load_config(config_path)
+            lines = load_script(script_path, config.audio.extension)
+            audio_dir = output_dir / "audio"
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            (audio_dir / "welcome.wav").write_bytes(b"already-generated")
+
+            with patch("ootp_announcer.generator.synthesize") as mock_syn:
+                build_voice_pack(config, lines, output_dir, skip_existing=True)
+
+            self.assertEqual(mock_syn.call_count, 1)
+            self.assertEqual(mock_syn.call_args[0][0], "Goodbye.")
+
 
 if __name__ == "__main__":
     unittest.main()

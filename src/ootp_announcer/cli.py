@@ -44,6 +44,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Only generate the first N lines (quick test / save time and credits)",
     )
+    build.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip lines whose output audio file already exists and is non-empty (resume after errors or quota)",
+    )
     build.set_defaults(func=_build)
 
     verify = subcommands.add_parser(
@@ -86,7 +91,12 @@ def _build(args: argparse.Namespace) -> int:
             print("--max-lines must be at least 1", file=sys.stderr)
             return 2
         lines = lines[: args.max_lines]
-    manifest = build_voice_pack(config, lines, args.out)
+    manifest = build_voice_pack(
+        config,
+        lines,
+        args.out,
+        skip_existing=args.skip_existing,
+    )
     print(f"Generated {len(lines)} line(s)")
     print(f"Manifest: {manifest}")
     return 0
