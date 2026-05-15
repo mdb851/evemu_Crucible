@@ -144,18 +144,19 @@ If `harvest-pbp` reports no `English.html`, the install path is wrong or the gam
 - Re-run with **`--verbose`** to print candidate HTML/XML paths under `--ootp-root`.
 - Pass the file explicitly: **`--html-file "C:\full\path\to\English.html"`** (find the file in Explorer search inside the game folder).
 
-## Scope (v1.0)
+## Scope (v1.1)
 
 **Included**
 
-- CLI: `discover`, `init-config`, `build` (with `--max-lines`, `--skip-existing`), `verify-elevenlabs`, `harvest-pbp` (HTML/XML, Steam library discovery, `--html-file`, `--verbose`).
+- CLI: `discover`, `init-config`, `build` (with `--max-lines`, `--skip-existing`), `verify-elevenlabs`, `harvest-pbp` (HTML/XML, Steam library discovery, `--html-file`, `--verbose`), **`export-ootp-sounds`** (manifest + TOML map → OOTP-style `.wav`; MP3 sources need ffmpeg).
 - TTS backends: `dry-run`, `piper`, `command`, `elevenlabs` (including key file / env handling and clearer API errors).
 - Example CSV, **professional broadcast** pack under `packs/professional_broadcast/`, and a PowerShell helper for ElevenLabs full builds.
 - Generated **voice pack layout** (see below) suitable for tooling or mods you wire up yourself.
+- **[docs/INTEGRATION.md](docs/INTEGRATION.md)** — how to use `export-ootp-sounds` with OOTP’s `data/sounds` event filenames.
 
-**Out of scope for v1.0**
+**Out of scope for v1.1**
 
-- A built-in OOTP mod that maps `manifest.json` cues to in-game events (game hooks differ by version and community tools).
+- A turnkey mod that wires every CSV cue to a live in-game event without you choosing mappings (OOTP exposes **event-based sound names**, not our ids).
 - Runtime substitution of live roster names into pre-baked audio (that requires either generic copy, a roster-driven generator, or game-side TTS).
 
 ## End-to-end workflow
@@ -164,7 +165,7 @@ If `harvest-pbp` reports no `English.html`, the install path is wrong or the gam
 2. Author or merge CSV (`id`, `text`, optional `category` / `filename`); optionally `harvest-pbp` from `english.xml` and curate rows into your script.
 3. `init-config` (once) → edit `announcer.toml` for Piper, ElevenLabs, or `command` backend.
 4. `verify-elevenlabs` (if using ElevenLabs) → `build --out path\to\voice-pack` → use `--skip-existing` to resume interrupted runs.
-5. Point your OOTP integration or mod at the output folder (`manifest.json` + `audio/`).
+5. Optionally **`export-ootp-sounds`** to stage `.wav` files for OOTP’s `data/sounds` naming (see [docs/INTEGRATION.md](docs/INTEGRATION.md)); otherwise keep the pack for a custom mod or external player.
 
 ## Generated voice pack layout
 
@@ -175,6 +176,14 @@ After `build`, the output directory contains:
 | `audio/*.{mp3,wav}` | One file per script line (extension from config). |
 | `manifest.json` | Pack metadata: `name`, `game`, `created_at`, `voice_backend`, `build`, `ootp`, and `lines[]` with `id`, `category`, `text`, `audio` path. |
 | `script-lines.json` | Snapshot of parsed CSV rows (ids, text, filenames) for reproducibility. |
+
+## OOTP `data/sounds` bridge
+
+To drop generated clips into the game’s **event-based** sound filenames, read **[docs/INTEGRATION.md](docs/INTEGRATION.md)** and use:
+
+```powershell
+python -m ootp_announcer export-ootp-sounds --voice-pack build\voice-pack-professional --map packs\professional_broadcast\ootp_sound_map.example.toml --dest path\to\staging\sounds --dry-run
+```
 
 ## License
 

@@ -8,6 +8,7 @@ import sys
 from .config import default_config_text, load_config
 from .generator import build_voice_pack
 from .ootp_paths import likely_candidates
+from .ootp_sound_export import SoundExportError, export_sounds
 from .pbp_harvest import (
     find_pbp_language_html,
     harvest_phrases_from_html,
@@ -114,6 +115,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="If discovery fails, print candidate HTML/XML paths under --ootp-root",
     )
     harvest.set_defaults(func=_harvest_pbp)
+
+    export_sounds_cmd = subcommands.add_parser(
+        "export-ootp-sounds",
+        help="Copy or convert manifest cues into OOTP data/sounds-style .wav files (see docs/INTEGRATION.md)",
+    )
+    export_sounds_cmd.add_argument(
+        "--voice-pack",
+        type=Path,
+        required=True,
+        help="Directory that contains manifest.json and an audio/ subfolder",
+    )
+    export_sounds_cmd.add_argument(
+        "--map",
+        type=Path,
+        required=True,
+        help="TOML file with [[map]] rows: cue_id + ootp_filename (basename without .wav)",
+    )
+    export_sounds_cmd.add_argument(
+        "--dest",
+        type=Path,
+        required=True,
+        help="Output folder (use a staging path first; back up the game's sounds folder)",
+    )
+    export_sounds_cmd.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print planned copies/conversions without writing files",
+    )
+    export_sounds_cmd.add_argument(
+        "--ffmpeg",
+        default="ffmpeg",
+        metavar="EXE",
+        help="ffmpeg executable name when converting MP3 sources (default: ffmpeg)",
+    )
+    export_sounds_cmd.set_defaults(func=_export_ootp_sounds)
 
     return parser
 
@@ -312,6 +348,23 @@ def _harvest_pbp(args: argparse.Namespace) -> int:
         print(f"  {path}")
     print(f"Wrote {len(rows)} unique phrase(s) to {args.out}")
     print("Merge or cherry-pick rows into your script CSV, then run build.")
+    return 0
+
+
+def _export_ootp_sounds(args: argparse.Namespace) -> int:
+    try:
+        lines = export_sounds(
+            args.voice_pack.expanduser().resolve(),
+            args.map.expanduser().resolve(),
+            args.dest.expanduser().resolve(),
+            dry_run=bool(args.dry_run),
+            ffmpeg_exe=str(args.ffmpeg),
+        )
+    except SoundExportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    for line in lines:
+        print(line)
     return 0
 
 

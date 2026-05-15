@@ -1,0 +1,24 @@
+# Example: map a few professional-pack cue ids to OOTP sound basenames.
+# Copy to ootp_sound_map.toml (gitignored if you prefer), edit, then run:
+#   python -m ootp_announcer export-ootp-sounds --voice-pack build\voice-pack-professional --map ootp_sound_map.toml --dest ...
+#
+# OOTP picks among variants (e.g. catch_ball1..5). Exporting overwrites
+# basename.wav once — back up the game's sounds folder first.
+#
+# Wiki overview: https://wiki.ootpdevelopments.com/index.php?title=OOTP_Baseball%3AImportant_Game_Concepts%2FTools%2C_Functions%2C_and_Editors%2FIn-Game_Editors%2FBallpark_Editor%2FSounds
+
+[[map]]
+cue_id = "br_homer_no_doubt"
+ootp_filename = "hit_hard"
+
+[[map]]
+cue_id = "br_homer_oppo"
+ootp_filename = "hit_normal"
+
+[[map]]
+cue_id = "br_strikeout_swing"
+ootp_filename = "cheer_light"
+
+[[map]]
+cue_id = "br_open_evening"
+ootp_filename = "cheer_heavy"

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ootp27-realistic-announcer"
-version = "1.0.0"
-description = "OOTP 27 Realistic Announcer — build CSV-driven voice packs (Piper, ElevenLabs, or custom TTS), manifests, and optional PBP text harvest."
+version = "1.1.0"
+description = "OOTP 27 Realistic Announcer — build CSV-driven voice packs (Piper, ElevenLabs, or custom TTS), harvest game text, export cues into OOTP data/sounds-style WAVs, and emit manifests."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }

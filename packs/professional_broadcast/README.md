@@ -51,7 +51,11 @@ python -m ootp_announcer build ^
 
 ## OOTP integration
 
-OOTP’s announcer ecosystem is largely **text play-by-play** plus optional **audio** workflows depending on version and mods. Treat this pack as **broadcast-grade source audio** plus `manifest.json` for tooling: align filenames and folders with whatever hook or mod you use to replace in-game cues. Run `python -m ootp_announcer discover` on your game PC to locate install and user data paths.
+OOTP’s announcer ecosystem is largely **text play-by-play** plus optional **audio** workflows depending on version and mods. Treat this pack as **broadcast-grade source audio** plus `manifest.json` for tooling.
+
+**Replacing stock ballpark/event sounds:** use the repo’s **`export-ootp-sounds`** command and the guide **[`docs/INTEGRATION.md`](../../docs/INTEGRATION.md)** (TOML map: cue id → OOTP sound basename). Example map: [`ootp_sound_map.example.toml`](ootp_sound_map.example.toml).
+
+Run `python -m ootp_announcer discover` on your game PC to locate install and user data paths.
 
 ## Customizing
 
